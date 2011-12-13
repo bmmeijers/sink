@@ -1,0 +1,9 @@
+#
+# what to dump
+#
+SCHEMA = 1
+DATA = 2
+INDICES = 4
+STATISTICS = 8
+
+ALL = SCHEMA + DATA + INDICES + STATISTICS
