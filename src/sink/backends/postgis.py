@@ -136,7 +136,7 @@ def dump_line(layer, feature, fh):
             elif feature[i] is None:
                 sql += "NULL"
             else:
-                sql += "'{0}'".format(feature[i])
+                sql += '"{0}"'.format(feature[i])
         elif tp in numeric_types:
             if feature[i] is None:
                 sql += "NULL"
@@ -145,7 +145,7 @@ def dump_line(layer, feature, fh):
         elif feature[i] is None:
             sql += "NULL"
         else:
-            sql += "'{0}'".format(feature[i])
+            sql += '"{0}"'.format(feature[i])
         if i != len(layer.schema.types) - 1:
             sql += ","
     sql += "\n"

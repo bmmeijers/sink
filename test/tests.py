@@ -2,11 +2,12 @@ from sink import Schema, Field, Index, Layer, StreamingLayer
 
 # if you want to switch backend, do it here, 
 # i.e. before dump / dumps gets imported...
-#from sink import use
+from sink import use
 #use('oracle')
+use('sqlite')
 
 from sink import dump, dumps
-from sink import SCHEMA, DATA, INDICES, STATISTICS
+from sink import SCHEMA, DATA, INDICES, STATISTICS, ALL
 
 def test():
     from brep.geometry import Point, Envelope
@@ -87,7 +88,7 @@ def test_stream():
     
 #    fh = open('/tmp/stream', 'w')
     
-    layer = StreamingLayer(schema, "boekie", what = STATISTICS) #stream = fh)
+    layer = StreamingLayer(schema, "boekie", what = ALL) #stream = fh)
     layer.append(1, 5, 6, 15, 16, Point(10, 10), Point(10, 10), Envelope(0,0,10, 10))
     layer.append(2, 5, 6, 15, 16, Point(10,15), Point(10, 10), Envelope(0,0,10, 10))
     layer.finalize()

@@ -81,7 +81,7 @@ from backends.common import SCHEMA, DATA, INDICES, STATISTICS, ALL
 
 def use(name):
     backendname = 'sink.backends.{0}'.format(name)
-    mod = __import__(backendname, globals=globals(),  locals=locals(), fromlist='*', level=0) #, globals(), locals(), [backendname])
+    mod = __import__(backendname, globals=globals(), locals=locals(), fromlist='*', level=0) #, globals(), locals(), [backendname])
 #    method = getattr(mod, 'dump')
 #    globals()['dump'] = method
     lst = ['spatial_types', 'numeric_types', 'string_types',
