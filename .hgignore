@@ -1,0 +1,3 @@
+
+syntax: regexp
+^src/sink\.egg-info$
