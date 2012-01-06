@@ -14,6 +14,7 @@ import os, tempfile
 spatial_types = ('point', 'linestring', 'polygon', 'box2d', )
 numeric_types = ('integer', 'bigint', 'numeric', 'double', 'float', )
 string_types =  ('varchar', )
+date_types = ('timestamp', 'date', 'time', )
 
 def loads(file):
     raise NotImplementedError('not yet there')

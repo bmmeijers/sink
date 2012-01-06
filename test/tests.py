@@ -4,7 +4,7 @@ from sink import Schema, Field, Index, Layer, StreamingLayer
 # i.e. before dump / dumps gets imported...
 from sink import use
 #use('oracle')
-use('sqlite')
+use('postgis')
 
 from sink import dump, dumps
 from sink import SCHEMA, DATA, INDICES, STATISTICS, ALL

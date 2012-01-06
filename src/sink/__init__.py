@@ -84,7 +84,7 @@ def use(name):
     mod = __import__(backendname, globals=globals(), locals=locals(), fromlist='*', level=0) #, globals(), locals(), [backendname])
 #    method = getattr(mod, 'dump')
 #    globals()['dump'] = method
-    lst = ['spatial_types', 'numeric_types', 'string_types',
+    lst = ['spatial_types', 'numeric_types', 'string_types', 'date_types',
             'dump', 'dumps',
             'dump_schema',
             'dump_pre_data', 'dump_line', 'dump_post_data', 'dump_data',
@@ -95,7 +95,6 @@ def use(name):
         globals()[item]= importing
 
 use('postgis')
-
 
 
 class Schema(object):
@@ -110,7 +109,8 @@ class Schema(object):
     def add_field(self, field):
         assert (field.type in spatial_types) or \
                 (field.type in numeric_types) or \
-                (field.type in string_types), \
+                (field.type in string_types) or \
+                (field.type in date_types), \
                 'Unknown type found: "{0}" for field "{1}"'.format(field.type, 
                                                                    field.name) 
         self.fields.append(field)
@@ -187,6 +187,8 @@ class StreamingLayer(object):
         else:
             self._stream = sys.stdout
         self.Feature = collections.namedtuple('Feature', ", ".join(self.schema.names))
+
+    def init(self):
         if self._what & SCHEMA:
             dump_schema(self, self._stream)
         if self._what & DATA:
@@ -229,6 +231,7 @@ class StreamingLayer(object):
         if self._what & STATISTICS:
             dump_statistics(self, self._stream)
         self._stream.flush()
+        self._stream.close()
         self._finalized = True
 
 class Index(object):
