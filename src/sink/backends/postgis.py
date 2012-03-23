@@ -7,13 +7,14 @@ __version__ = '0.0.1'
 __author__ = 'Martijn Meijers'
 
 from brep.io import as_hexewkb
-from .common import SCHEMA, DATA, INDICES, STATISTICS, ALL
+from .common import Phase
 import shlex, subprocess
 import os, tempfile
 
 spatial_types = ('point', 'linestring', 'polygon', 'box2d', )
-numeric_types = ('integer', 'bigint', 'numeric', 'double', 'float', )
+numeric_types = ('integer', 'bigint', 'numeric', 'float', )
 string_types =  ('varchar', )
+boolean_types = ('boolean',)
 date_types = ('timestamp', 'date', 'time', )
 
 def loads(file):
@@ -70,7 +71,7 @@ def dump_schema(layer, fh): #schema, table_name, srid):
     fh.write(sql)
 
 
-def dump_indices(layer, fh, table_space = "indx"):
+def dump_indices(layer, fh, table_space = "pg_default"):
     fh.write("\nBEGIN;\n")
     for index in layer.schema.indices:
 #        print index, [field.name for field in index.fields]
@@ -92,7 +93,11 @@ def dump_indices(layer, fh, table_space = "indx"):
             for field in index.fields:
                 if field.type in spatial_types:
                     method = "gist"
-                    opclass = "gist_geometry_ops"        
+                    # opclass = "gist_geometry_ops"
+                    # TODO: opclass has changed in postgis 2
+                    # to also support nd indexing, therefore gist_geometry_ops
+                    # does not exist any more
+                    # @see: http://trac.osgeo.org/postgis/ticket/1287     
                 break
             sql = "CREATE INDEX "
             sql += "{0}__".format(layer.name)
@@ -103,7 +108,7 @@ def dump_indices(layer, fh, table_space = "indx"):
             sql += '", "'.join([field.name for field in index.fields])
             sql += '" {0}'.format(opclass)
             sql += ') '
-            sql += "TABLESPACE {0}".format(table_space)
+            sql += 'TABLESPACE "{0}"'.format(table_space)
             sql += ";\n"
             fh.write(sql)
     fh.write("COMMIT;\n")
@@ -143,6 +148,14 @@ def dump_line(layer, feature, fh):
                 sql += "NULL"
             else:
                 sql += "{0}".format(feature[i])
+        elif tp in numeric_types:
+            if feature[i] is None:
+                sql += "NULL"
+            else:
+                if feature[i]:
+                    sql += "TRUE"
+                else:
+                    sql += "FALSE"
         elif feature[i] is None:
             sql += "NULL"
         else:
@@ -174,21 +187,21 @@ def dump_data(layer, fh):
     dump_post_data(layer, fh)
     return
 
-def dump(layer, fh, what = ALL):
+def dump(layer, fh, phase = Phase.ALL):
     """Dumps a string representation of ``layer'' to buffer like object ``fh''
     
     ``what'' specifies what should be dumped
     """
-    if what & SCHEMA:
+    if what & Phase.SCHEMA:
         dump_schema(layer, fh)
-    if what & DATA:
+    if what & Phase.DATA:
         dump_data(layer, fh)
-    if what & INDICES:
+    if what & Phase.INDICES:
         dump_indices(layer, fh)
-    if what & STATISTICS:
+    if what & Phase.STATISTICS:
         dump_statistics(layer, fh)
 
-def dumps(layer, what = ALL):
+def dumps(layer, what = Phase.ALL):
     """Returns a string representation of ``layer''
     """
     try:

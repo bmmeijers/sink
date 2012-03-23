@@ -5,13 +5,13 @@ Created on Aug 18, 2010, 2011
 @author: martijn
 """
 
-__version__ = '0.0.1'
+__version__ = '0.1.0'
 __license__ = 'MIT license'
 __author__ = 'Martijn Meijers'
 
 import collections
 import sys
-from backends.common import SCHEMA, DATA, INDICES, STATISTICS, ALL
+from backends.common import Phase
 
 # - created, aug 18, 2010, MM
 # - update,  dec 13, 2010, MM: added indexing & split dumping of data into parts
@@ -84,7 +84,7 @@ def use(name):
     mod = __import__(backendname, globals=globals(), locals=locals(), fromlist='*', level=0) #, globals(), locals(), [backendname])
 #    method = getattr(mod, 'dump')
 #    globals()['dump'] = method
-    lst = ['spatial_types', 'numeric_types', 'string_types', 'date_types',
+    lst = ['spatial_types', 'numeric_types', 'string_types', 'date_types', 'boolean_types',
             'dump', 'dumps',
             'dump_schema',
             'dump_pre_data', 'dump_line', 'dump_post_data', 'dump_data',
@@ -110,6 +110,7 @@ class Schema(object):
         assert (field.type in spatial_types) or \
                 (field.type in numeric_types) or \
                 (field.type in string_types) or \
+                (field.type in boolean_types) or \
                 (field.type in date_types), \
                 'Unknown type found: "{0}" for field "{1}"'.format(field.type, 
                                                                    field.name) 
@@ -173,7 +174,7 @@ class Layer(object):
         pass
 
 class StreamingLayer(object):
-    def __init__(self, schema, name, srid = -1, stream = None, unbuffered = False, what = ALL):
+    def __init__(self, schema, name, srid = -1, stream = None, unbuffered = False, phase = Phase.ALL):
         self._count = 0
         self._finalized = False
         assert len(name) > 0
@@ -181,7 +182,7 @@ class StreamingLayer(object):
         self.name = name
         self.srid = srid
         self._unbuffered = unbuffered
-        self._what = what
+        self._phase = phase
         if stream is not None:
             self._stream = stream
         else:
@@ -189,9 +190,9 @@ class StreamingLayer(object):
         self.Feature = collections.namedtuple('Feature', ", ".join(self.schema.names))
 
     def init(self):
-        if self._what & SCHEMA:
+        if self._phase & Phase.PREPARE:
             dump_schema(self, self._stream)
-        if self._what & DATA:
+        if self._phase & Phase.EXECUTE:
             dump_pre_data(self, self._stream)
         if self._unbuffered:
             self._stream.flush()
@@ -205,7 +206,7 @@ class StreamingLayer(object):
             raise ValueError('append method called, while stream already finalized')
         f = self.Feature._make(attrs)
         self._count += 1
-        if self._what & DATA:
+        if self._phase & Phase.EXECUTE:
             dump_line(self, f, self._stream)
         if self._unbuffered:
             self._stream.flush()
@@ -222,16 +223,16 @@ class StreamingLayer(object):
 #        self._stream.truncate(0)
         raise ValueError('clear method does not work for StreamingLayer')
 
-    def finalize(self):
+    def finalize(self, table_space = 'pg_default'):
         # dump_post_data
-        if self._what & DATA:
+        if self._phase & Phase.EXECUTE:
             dump_post_data(self, self._stream)
-        if self._what & INDICES:
-            dump_indices(self, self._stream)
-        if self._what & STATISTICS:
+        if self._phase & Phase.FINALIZE:
+            dump_indices(self, self._stream, table_space)
+        if self._phase & Phase.FINALIZE:
             dump_statistics(self, self._stream)
         self._stream.flush()
-        self._stream.close()
+#        self._stream.close()
         self._finalized = True
 
 class Index(object):

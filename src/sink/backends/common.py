@@ -1,9 +1,17 @@
 #
 # what to dump
 #
-SCHEMA = 1
-DATA = 2
-INDICES = 4
-STATISTICS = 8
-
-ALL = SCHEMA + DATA + INDICES + STATISTICS
+class Phase(object):
+    # prepare
+    SCHEMA = 1
+    # execute
+    DATA = 2
+    # finalize
+    INDICES = 4
+    STATISTICS = 8
+    #
+    ALL = SCHEMA + DATA + INDICES + STATISTICS
+    # nicknames
+    PREPARE = SCHEMA
+    EXECUTE = DATA
+    FINALIZE = INDICES + STATISTICS
