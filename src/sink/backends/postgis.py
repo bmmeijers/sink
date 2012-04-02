@@ -17,10 +17,10 @@ string_types =  ('varchar', )
 boolean_types = ('boolean',)
 date_types = ('timestamp', 'date', 'time', )
 
-def loads(file):
+def loads(man0):
     raise NotImplementedError('not yet there')
 
-def dump_schema(layer, fh): #schema, table_name, srid):
+def dump_schema(layer, stream0): #schema, table_name, srid):
     schema = layer.schema
     table_name = layer.name
     srid = layer.srid
@@ -68,25 +68,28 @@ def dump_schema(layer, fh): #schema, table_name, srid):
 #            raise ValueError("Unknown dimension ({0}) given for geometry".format(dim))
         sql += "SELECT AddGeometryColumn('{0}', '{1}', '{2}', '{3}', 2);\n".format(table_name, field_nm.lower(), srid, tp)
     sql += "COMMIT;\n"
-    fh.write(sql)
+    stream0.write(sql)
 
 
-def dump_indices(layer, fh, table_space = "pg_default"):
-    fh.write("\nBEGIN;\n")
+def dump_indices(layer, stream0, table_space = "pg_default"):
+    stream0.write("\nBEGIN;\n")
     for index in layer.schema.indices:
+        field_names = [field.name for field in index.fields]
+        index_nm = "{0}__".format(layer.name)
+        index_nm += "__".join(field_names)        
+        index_nm += "__idx"
 #        print index, [field.name for field in index.fields]
         if index.primary_key:
             # ALTER TABLE distributors ADD PRIMARY KEY (dist_id);
             #assert len(index.fields) == 1, "index is primary key, so exactly one field required"
-            flds = []
-            for field in index.fields:
-                flds.append(field.name)
-            sql = "ALTER TABLE {0} ADD PRIMARY KEY ({1});\n".format(layer.name, ", ".join(flds))
-            fh.write(sql)
+            sql = "ALTER TABLE {0} ADD PRIMARY KEY ({1});\n".format(layer.name, field_names)
+            stream0.write(sql)
+            stream0.write("\nCOMMIT;\nBEGIN;\n")
         else:
+            
             #    CREATE INDEX boekie_centroid_idx ON boekie USING GIST 
             #    ("centroid" gist_geometry_ops) TABLESPACE indx;
-            field_names = [field.name for field in index.fields]
+            
             assert len(set([field.type for field in index.fields])) == 1, "only same type of fields currently allowed in one index"
             method = "btree" #btree, hash, gist, and gin
             opclass = ""
@@ -100,9 +103,8 @@ def dump_indices(layer, fh, table_space = "pg_default"):
                     # @see: http://trac.osgeo.org/postgis/ticket/1287     
                 break
             sql = "CREATE INDEX "
-            sql += "{0}__".format(layer.name)
-            sql += "__".join(field_names)        
-            sql += "__idx ON {0} ".format(layer.name)
+            sql += "{0} ".format(index_nm)
+            sql += "ON {0} ".format(layer.name)
             sql += "USING {0} ".format(method)
             sql += '("'
             sql += '", "'.join([field.name for field in index.fields])
@@ -110,27 +112,31 @@ def dump_indices(layer, fh, table_space = "pg_default"):
             sql += ') '
             sql += 'TABLESPACE "{0}"'.format(table_space)
             sql += ";\n"
-            fh.write(sql)
-    fh.write("COMMIT;\n")
+            stream0.write(sql)
+        if index.cluster:
+            #CLUSTER indexname ON tablename
+            sql = "CLUSTER {0} ON {1};\n".format(index_nm, layer.name)
+            stream0.write(sql)
+    stream0.write("COMMIT;\n")
     return
 
 
-def dump_statistics(layer, fh):
+def dump_statistics(layer, stream0):
     sql = """\nVACUUM ANALYZE {0};\n""".format(layer.name)
-    fh.write(sql)
+    stream0.write(sql)
     return
 
-def dump_truncate(layer, fh):
+def dump_truncate(layer, stream0):
     sql = """\nTRUNCATE {0};\n""".format(layer.name)
-    fh.write(sql)
+    stream0.write(sql)
     return
 
-def dump_drop(layer, fh):
+def dump_drop(layer, stream0):
     sql = """\nDROP TABLE {0};\n""".format(layer.name)
-    fh.write(sql)
+    stream0.write(sql)
     return
 
-def dump_line(layer, feature, fh):
+def dump_line(layer, feature, stream0):
     sql = ""
     for i, tp in enumerate(layer.schema.types):
         if tp in spatial_types:
@@ -163,9 +169,9 @@ def dump_line(layer, feature, fh):
         if i != len(layer.schema.types) - 1:
             sql += ","
     sql += "\n"
-    fh.write(sql)
+    stream0.write(sql)
 
-def dump_pre_data(layer, fh):
+def dump_pre_data(layer, stream0):
     # dump_pre_data
     sql = "\nBEGIN;\nCOPY {0} (".format(layer.name)
     defs = []    
@@ -174,44 +180,44 @@ def dump_pre_data(layer, fh):
         defs.append(field_def)
     sql += ", ".join(defs)
     sql += """) FROM STDIN NULL AS 'NULL' CSV QUOTE '"';\n"""
-    fh.write(sql)
+    stream0.write(sql)
 
-def dump_post_data(layer, fh):
+def dump_post_data(layer, stream0):
     # dump_post_data
-    fh.write("\.\n\nCOMMIT;\n")
+    stream0.write("\.\n\nCOMMIT;\n")
     
-def dump_data(layer, fh):
-    dump_pre_data(layer, fh)
+def dump_data(layer, stream0):
+    dump_pre_data(layer, stream0)
     for feature in layer.features:
-        dump_line(layer, feature, fh)
-    dump_post_data(layer, fh)
+        dump_line(layer, feature, stream0)
+    dump_post_data(layer, stream0)
     return
 
-def dump(layer, fh, phase = Phase.ALL):
-    """Dumps a string representation of ``layer'' to buffer like object ``fh''
+def dump(layer, stream0, phase = Phase.ALL):
+    """Dumps a string representation of ``layer'' to buffer like object ``stream0''
     
     ``what'' specifies what should be dumped
     """
-    if what & Phase.SCHEMA:
-        dump_schema(layer, fh)
-    if what & Phase.DATA:
-        dump_data(layer, fh)
-    if what & Phase.INDICES:
-        dump_indices(layer, fh)
-    if what & Phase.STATISTICS:
-        dump_statistics(layer, fh)
+    if phase & Phase.SCHEMA:
+        dump_schema(layer, stream0)
+    if phase & Phase.DATA:
+        dump_data(layer, stream0)
+    if phase & Phase.INDICES:
+        dump_indices(layer, stream0)
+    if phase & Phase.STATISTICS:
+        dump_statistics(layer, stream0)
 
-def dumps(layer, what = Phase.ALL):
+def dumps(layer, phase = Phase.ALL):
     """Returns a string representation of ``layer''
     """
     try:
         from cStringIO import StringIO
     except ImportError:
         from StringIO import StringIO
-    fh = StringIO()
-    dump(layer, fh, what)
-    ret = fh.getvalue()
-    fh.close()
+    stream0 = StringIO()
+    dump(layer, stream0, phase)
+    ret = stream0.getvalue()
+    stream0.close()
     return ret
 
 #class Loader(object):

@@ -1,11 +1,11 @@
 """Sink, a lightweight abstraction for Table Oriented Output
 
-Created on Aug 18, 2010, 2011
+Created on Aug 18, 2010
 
 @author: martijn
 """
 
-__version__ = '0.1.0'
+__version__ = '0.2.0'
 __license__ = 'MIT license'
 __author__ = 'Martijn Meijers'
 
@@ -188,6 +188,11 @@ class StreamingLayer(object):
         else:
             self._stream = sys.stdout
         self.Feature = collections.namedtuple('Feature', ", ".join(self.schema.names))
+        
+        # TODO:
+        # If we would ever need something that has mutable attributes,
+        # this recipe could help 
+        # http://code.activestate.com/recipes/576555/
 
     def init(self):
         if self._phase & Phase.PREPARE:
@@ -236,9 +241,10 @@ class StreamingLayer(object):
         self._finalized = True
 
 class Index(object):
-    def __init__(self, fields, primary_key = False):
+    def __init__(self, fields, primary_key = False, cluster = False):
         self.fields = []
         self.primary_key = primary_key
+        self.cluster = cluster
         for field in fields:
             self.add_field(field)
     
