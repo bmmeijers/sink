@@ -20,7 +20,7 @@ date_types = ('timestamp', 'date', 'time', )
 def loads(man0):
     raise NotImplementedError('not yet there')
 
-def dump_schema(layer, stream0): #schema, table_name, srid):
+def dump_schema(layer, stream): #schema, table_name, srid):
     schema = layer.schema
     table_name = layer.name
     srid = layer.srid
@@ -37,10 +37,10 @@ def dump_schema(layer, stream0): #schema, table_name, srid):
         if tp in spatial_types:
             geom_fields.append((i, schema.names[i])) # idx + name    
     # -- drop what is there (raises error / notice if table not there)
+    sql = "\nBEGIN;\n"
     for i, field_nm in geom_fields:
         sql += "SELECT DropGeometryColumn('{0}', '{1}');\n".format(table_name, field_nm)
     sql += "DROP TABLE IF EXISTS {0};\n".format(table_name)
-    sql += "\nBEGIN;\n"
     # -- create table
     sql += "CREATE TABLE {0} (".format(table_name)
     #
@@ -68,11 +68,12 @@ def dump_schema(layer, stream0): #schema, table_name, srid):
 #            raise ValueError("Unknown dimension ({0}) given for geometry".format(dim))
         sql += "SELECT AddGeometryColumn('{0}', '{1}', '{2}', '{3}', 2);\n".format(table_name, field_nm.lower(), srid, tp)
     sql += "COMMIT;\n"
-    stream0.write(sql)
+    stream.write(sql)
+    stream.flush()
 
 
-def dump_indices(layer, stream0, table_space = "pg_default"):
-    stream0.write("\nBEGIN;\n")
+def dump_indices(layer, stream, table_space = "pg_default"):
+    stream.write("\nBEGIN;\n")
     for index in layer.schema.indices:
         field_names = [field.name for field in index.fields]
         index_nm = "{0}__".format(layer.name)
@@ -83,8 +84,8 @@ def dump_indices(layer, stream0, table_space = "pg_default"):
             # ALTER TABLE distributors ADD PRIMARY KEY (dist_id);
             #assert len(index.fields) == 1, "index is primary key, so exactly one field required"
             sql = "ALTER TABLE {0} ADD PRIMARY KEY ({1});\n".format(layer.name, field_names)
-            stream0.write(sql)
-            stream0.write("\nCOMMIT;\nBEGIN;\n")
+            stream.write(sql)
+            stream.write("\nCOMMIT;\nBEGIN;\n")
         else:
             
             #    CREATE INDEX boekie_centroid_idx ON boekie USING GIST 
@@ -112,31 +113,31 @@ def dump_indices(layer, stream0, table_space = "pg_default"):
             sql += ') '
             sql += 'TABLESPACE "{0}"'.format(table_space)
             sql += ";\n"
-            stream0.write(sql)
+            stream.write(sql)
         if index.cluster:
             #CLUSTER indexname ON tablename
             sql = "CLUSTER {0} ON {1};\n".format(index_nm, layer.name)
-            stream0.write(sql)
-    stream0.write("COMMIT;\n")
+            stream.write(sql)
+    stream.write("COMMIT;\n")
     return
 
 
-def dump_statistics(layer, stream0):
+def dump_statistics(layer, stream):
     sql = """\nVACUUM ANALYZE {0};\n""".format(layer.name)
-    stream0.write(sql)
+    stream.write(sql)
     return
 
-def dump_truncate(layer, stream0):
+def dump_truncate(layer, stream):
     sql = """\nTRUNCATE {0};\n""".format(layer.name)
-    stream0.write(sql)
+    stream.write(sql)
     return
 
-def dump_drop(layer, stream0):
+def dump_drop(layer, stream):
     sql = """\nDROP TABLE {0};\n""".format(layer.name)
-    stream0.write(sql)
+    stream.write(sql)
     return
 
-def dump_line(layer, feature, stream0):
+def dump_line(layer, feature, stream):
     sql = ""
     for i, tp in enumerate(layer.schema.types):
         if tp in spatial_types:
@@ -169,9 +170,9 @@ def dump_line(layer, feature, stream0):
         if i != len(layer.schema.types) - 1:
             sql += ","
     sql += "\n"
-    stream0.write(sql)
+    stream.write(sql)
 
-def dump_pre_data(layer, stream0):
+def dump_pre_data(layer, stream):
     # dump_pre_data
     sql = "\nBEGIN;\nCOPY {0} (".format(layer.name)
     defs = []    
@@ -180,32 +181,32 @@ def dump_pre_data(layer, stream0):
         defs.append(field_def)
     sql += ", ".join(defs)
     sql += """) FROM STDIN NULL AS 'NULL' CSV QUOTE '"';\n"""
-    stream0.write(sql)
+    stream.write(sql)
 
-def dump_post_data(layer, stream0):
+def dump_post_data(layer, stream):
     # dump_post_data
-    stream0.write("\.\n\nCOMMIT;\n")
+    stream.write("\.\n\nCOMMIT;\n")
     
-def dump_data(layer, stream0):
-    dump_pre_data(layer, stream0)
+def dump_data(layer, stream):
+    dump_pre_data(layer, stream)
     for feature in layer.features:
-        dump_line(layer, feature, stream0)
-    dump_post_data(layer, stream0)
+        dump_line(layer, feature, stream)
+    dump_post_data(layer, stream)
     return
 
-def dump(layer, stream0, phase = Phase.ALL):
-    """Dumps a string representation of ``layer'' to buffer like object ``stream0''
+def dump(layer, stream, phase = Phase.ALL):
+    """Dumps a string representation of ``layer'' to buffer like object ``stream''
     
     ``what'' specifies what should be dumped
     """
     if phase & Phase.SCHEMA:
-        dump_schema(layer, stream0)
+        dump_schema(layer, stream)
     if phase & Phase.DATA:
-        dump_data(layer, stream0)
+        dump_data(layer, stream)
     if phase & Phase.INDICES:
-        dump_indices(layer, stream0)
+        dump_indices(layer, stream)
     if phase & Phase.STATISTICS:
-        dump_statistics(layer, stream0)
+        dump_statistics(layer, stream)
 
 def dumps(layer, phase = Phase.ALL):
     """Returns a string representation of ``layer''
@@ -214,10 +215,10 @@ def dumps(layer, phase = Phase.ALL):
         from cStringIO import StringIO
     except ImportError:
         from StringIO import StringIO
-    stream0 = StringIO()
-    dump(layer, stream0, phase)
-    ret = stream0.getvalue()
-    stream0.close()
+    stream = StringIO()
+    dump(layer, stream, phase)
+    ret = stream.getvalue()
+    stream.close()
     return ret
 
 #class Loader(object):

@@ -132,7 +132,7 @@ def dump_drop(layer, stream0):
     stream0.write(sql)
     return
 
-def dump_line(layer, feature, stream0):
+def dump_line(layer, feature, stream):
     sql = ""
     for i, tp in enumerate(layer.schema.types):
         if tp in spatial_types:
@@ -157,7 +157,7 @@ def dump_line(layer, feature, stream0):
         if i != len(layer.schema.types) - 1:
             sql += ","
     sql += "\n"
-    stream0.write(sql)
+    stream.write(sql)
 
 def dump_pre_data(layer, stream0):
     # dump_pre_data
@@ -181,19 +181,19 @@ def dump_data(layer, stream0):
     dump_post_data(layer, stream0)
     return
 
-def dump(layer, stream0, what = ALL):
-    """Dumps a string representation of ``layer'' to buffer like object ``stream0''
+def dump(layer, stream, what = ALL):
+    """Dumps a string representation of ``layer'' to buffer like object ``stream''
     
     ``what'' specifies what should be dumped
     """
     if what & SCHEMA:
-        dump_schema(layer, stream0)
+        dump_schema(layer, stream)
     if what & DATA:
-        dump_data(layer, stream0)
+        dump_data(layer, stream)
     if what & INDICES:
-        dump_indices(layer, stream0)
+        dump_indices(layer, stream)
     if what & STATISTICS:
-        dump_statistics(layer, stream0)
+        dump_statistics(layer, stream)
 
 def dumps(layer, what = ALL):
     """Returns a string representation of ``layer''
