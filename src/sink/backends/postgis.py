@@ -6,10 +6,13 @@ Created on Nov 16, 2011
 __version__ = '0.0.1'
 __author__ = 'Martijn Meijers'
 
-from brep.io import as_hexewkb
-from .common import Phase
 import shlex, subprocess
 import os, tempfile
+
+from brep.io import as_hexewkb
+from brep.conn import recordset
+
+from .common import Phase
 
 spatial_types = ('point', 'linestring', 'polygon', 'box2d', )
 numeric_types = ('integer', 'bigint', 'numeric', 'float', )
@@ -17,8 +20,21 @@ string_types =  ('varchar', )
 boolean_types = ('boolean',)
 date_types = ('timestamp', 'date', 'time', )
 
-def loads(man0):
-    raise NotImplementedError('not yet there')
+def loads(layer, limit = None):
+    # Once we have defined a schema / layer definition, it would be 
+    # fun to be able to load it
+    fields = ",".join(layer.schema.names)
+    sql = """
+    SELECT
+        {0}
+    FROM
+        {1}
+    """.format(fields, layer.name)
+    if limit is not None:
+        sql += "LIMIT {0}".format(limit)
+    for item in recordset(sql):
+        layer.append(*item)
+
 
 def dump_schema(layer, stream): #schema, table_name, srid):
     schema = layer.schema
@@ -39,8 +55,12 @@ def dump_schema(layer, stream): #schema, table_name, srid):
     # -- drop what is there (raises error / notice if table not there)
     sql = "\nBEGIN;\n"
     for i, field_nm in geom_fields:
+        sql += "\nCOMMIT;\nBEGIN;\n"
         sql += "SELECT DropGeometryColumn('{0}', '{1}');\n".format(table_name, field_nm)
+        sql += "\nCOMMIT;\nBEGIN;"
     sql += "DROP TABLE IF EXISTS {0};\n".format(table_name)
+    sql += "\nCOMMIT;\n"
+    sql += "\nBEGIN;\n"
     # -- create table
     sql += "CREATE TABLE {0} (".format(table_name)
     #
@@ -83,7 +103,7 @@ def dump_indices(layer, stream, table_space = "pg_default"):
         if index.primary_key:
             # ALTER TABLE distributors ADD PRIMARY KEY (dist_id);
             #assert len(index.fields) == 1, "index is primary key, so exactly one field required"
-            sql = "ALTER TABLE {0} ADD PRIMARY KEY ({1});\n".format(layer.name, field_names)
+            sql = "ALTER TABLE {0} ADD PRIMARY KEY ({1});\n".format(layer.name, ", ".join(field_names))
             stream.write(sql)
             stream.write("\nCOMMIT;\nBEGIN;\n")
         else:
@@ -105,10 +125,10 @@ def dump_indices(layer, stream, table_space = "pg_default"):
                 break
             sql = "CREATE INDEX "
             sql += "{0} ".format(index_nm)
-            sql += "ON {0} ".format(layer.name)
+            sql += "ON {0} ".format(layer.name.lower())
             sql += "USING {0} ".format(method)
             sql += '("'
-            sql += '", "'.join([field.name for field in index.fields])
+            sql += '", "'.join([field.name.lower() for field in index.fields])
             sql += '" {0}'.format(opclass)
             sql += ') '
             sql += 'TABLESPACE "{0}"'.format(table_space)
@@ -119,22 +139,26 @@ def dump_indices(layer, stream, table_space = "pg_default"):
             sql = "CLUSTER {0} ON {1};\n".format(index_nm, layer.name)
             stream.write(sql)
     stream.write("COMMIT;\n")
+    stream.flush()
     return
 
 
 def dump_statistics(layer, stream):
     sql = """\nVACUUM ANALYZE {0};\n""".format(layer.name)
     stream.write(sql)
+    stream.flush()
     return
 
 def dump_truncate(layer, stream):
     sql = """\nTRUNCATE {0};\n""".format(layer.name)
     stream.write(sql)
+    stream.flush()
     return
 
 def dump_drop(layer, stream):
     sql = """\nDROP TABLE {0};\n""".format(layer.name)
     stream.write(sql)
+    stream.flush()
     return
 
 def dump_line(layer, feature, stream):
@@ -171,21 +195,24 @@ def dump_line(layer, feature, stream):
             sql += ","
     sql += "\n"
     stream.write(sql)
+    stream.flush()
 
 def dump_pre_data(layer, stream):
     # dump_pre_data
     sql = "\nBEGIN;\nCOPY {0} (".format(layer.name)
     defs = []    
     for name in layer.schema.names:
-        field_def = '"{0}"'.format( name )
+        field_def = '"{0}"'.format( name.lower() )
         defs.append(field_def)
     sql += ", ".join(defs)
     sql += """) FROM STDIN NULL AS 'NULL' CSV QUOTE '"';\n"""
     stream.write(sql)
+    stream.flush()
 
 def dump_post_data(layer, stream):
     # dump_post_data
     stream.write("\.\n\nCOMMIT;\n")
+    stream.flush()
     
 def dump_data(layer, stream):
     dump_pre_data(layer, stream)
@@ -219,6 +246,7 @@ def dumps(layer, phase = Phase.ALL):
     dump(layer, stream, phase)
     ret = stream.getvalue()
     stream.close()
+    
     return ret
 
 #class Loader(object):
