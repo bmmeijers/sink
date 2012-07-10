@@ -5,13 +5,18 @@ Created on Aug 18, 2010
 @author: martijn
 """
 
-__version__ = '0.2.0'
+__version__ = '0.3.0'
 __license__ = 'MIT license'
 __author__ = 'Martijn Meijers'
 
 import collections
 import sys
 from backends.common import Phase
+
+
+# Probably this is also helpful:
+# http://code.google.com/p/web2py/source/browse/gluon/dal.py
+
 
 # - created, aug 18, 2010, MM
 # - update,  dec 13, 2010, MM: added indexing & split dumping of data into parts
@@ -85,7 +90,7 @@ def use(name):
 #    method = getattr(mod, 'dump')
 #    globals()['dump'] = method
     lst = ['spatial_types', 'numeric_types', 'string_types', 'date_types', 'boolean_types',
-            'dump', 'dumps',
+            'dump', 'dumps', 'loads',
             'dump_schema',
             'dump_pre_data', 'dump_line', 'dump_post_data', 'dump_data',
             'dump_indices',
@@ -183,6 +188,7 @@ class StreamingLayer(object):
         self.srid = srid
         self._unbuffered = unbuffered
         self._phase = phase
+        
         if stream is not None:
             self._stream = stream
         else:

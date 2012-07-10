@@ -7,13 +7,21 @@ Created on Nov 16, 2011
 __version__ = '0.0.1'
 __author__ = 'Martijn Meijers'
 
-from brep.io import as_hexewkb
+#Since all table/index names must be stored in the data dictionary and only 30 
+#characters are allocated for the storage, 
+#the maximum name size is 30 characters
+
+from simplegeo import dumps
+import hashlib
 
 spatial_types = ('point', 'linestring', 'polygon', 'box2d', )
-numeric_types = ('integer', 'bigint', 'numeric', 'double', 'float', )
+numeric_types = ('integer', 'bigint', 'numeric', 'float', )
 string_types =  ('varchar', )
+boolean_types = ('boolean',)
+date_types = ('timestamp', 'date', 'time', )
 
-raise NotImplementedError('not yet there')
+GEOM_SCHEMA = "mdsys"
+#raise NotImplementedError('not yet there')
 
 def loads(man0):
     raise NotImplementedError('not yet there')
@@ -58,6 +66,10 @@ def loads(man0):
 #create index point_tst_spatial_idx on point_tst(SHAPE) 
 #indextype is MDSYS.SPATIAL_INDEX parameters ('LAYER_GTYPE=point');
 
+#SDO_geometry (2003, null, null,
+#          SDO_elem_info_array (1,1003,3),
+#          SDO_ordinate_array (-109,37,-102,40));
+
 def dump_schema(layer, stream0): #schema, table_name, srid):
     schema = layer.schema
     table_name = layer.name
@@ -65,47 +77,81 @@ def dump_schema(layer, stream0): #schema, table_name, srid):
     #
     sql = "--\n-- Created with sink, Oracle backend v.{0}\n-- {1}\n--\n".format(__version__, __author__)
     #
-    geom_fields = []
-    for i, tp in enumerate(schema.types):
-        if tp in spatial_types:
-            geom_fields.append((i, schema.names[i])) # idx + name    
+#    geom_fields = []
+#    for i, tp in enumerate(schema.types):
+#        if tp in spatial_types:
+#            geom_fields.append((i, schema.names[i])) # idx + name    
     # -- drop what is there (raises error / notice if table not there)
-    for i, field_nm in geom_fields:
-        sql += "SELECT DropGeometryColumn('{0}', '{1}');\n".format(table_name, field_nm)
-    sql += "DROP TABLE IF EXISTS {0};\n".format(table_name)
-    sql += "\nBEGIN;\n"
+#    for i, field_nm in geom_fields:
+#        sql += "SELECT DropGeometryColumn('{0}', '{1}');\n".format(table_name, field_nm)
+    sql += """
+BEGIN
+   EXECUTE IMMEDIATE 'DROP TABLE {0}';
+EXCEPTION
+   WHEN OTHERS THEN
+      IF SQLCODE != -942 THEN
+         RAISE;
+      END IF;
+END;
+/
+
+""".format(table_name)
+    
+    sql += "\n--START TRANSACTION;\n"
     # -- create table
     sql += "CREATE TABLE {0} (".format(table_name)
     #
     defs = []
     for tp, name in zip(schema.types, schema.names):
         if tp not in spatial_types:
+            # -- add non-geometry type fields
             field_def = '{0} {1}'.format(name.lower(), tp)
             defs.append(field_def)
+        else:
+            # -- add geometry type fields
+            field_def = '{0} {1}'.format(name.lower(), "{}.sdo_geometry".format(GEOM_SCHEMA))
+            defs.append(field_def)
     sql += ", ".join(defs)
-    sql += ") WITH (OIDS=TRUE);\n"
+    sql += ");\n"
     # -- add geometry type fields
-    for i, field_nm in geom_fields:
-        tp = schema.types[i].upper()
-        if tp == 'BOX2D':
-            tp = 'POLYGON'
-#        print schema.types[i].upper()
-#        dim = schema.dimensions[i]
-#        if dim == 0:
-#            tp = "POINT"
-#        elif dim == 1:
-#            tp = "LINESTRING"
-#        elif dim == 2:
-#            tp = "POLYGON"
-#        else:
-#            raise ValueError("Unknown dimension ({0}) given for geometry".format(dim))
-        sql += "SELECT AddGeometryColumn('{0}', '{1}', '{2}', '{3}', 2);\n".format(table_name, field_nm.lower(), srid, tp)
+#    for i, field_nm in geom_fields:
+#        tp = schema.types[i].upper()
+#        if tp == 'BOX2D':
+#            tp = 'POLYGON'
+#        sql += "SELECT AddGeometryColumn('{0}', '{1}', '{2}', '{3}', 2);\n".format(table_name, field_nm.lower(), srid, tp)
     sql += "COMMIT;\n"
     stream0.write(sql)
 
 
-def dump_indices(layer, stream0, table_space = "indx"):
-    stream0.write("\nBEGIN;\n")
+def dump_indices(layer, stream0, table_space = "users"):
+    stream0.write("\n--START TRANSACTION;\n")
+    
+    for tp, field_nm in zip(layer.schema.types, layer.schema.names):
+        if tp in spatial_types:
+            stream0.write("""
+DELETE FROM user_sdo_geom_metadata WHERE table_name = '{0}' AND column_name = '{1}';
+INSERT INTO user_sdo_geom_metadata (diminfo, table_name, column_name, srid)
+VALUES (
+( SELECT MDSYS.SDO_DIM_ARRAY( 
+                        MDSYS.SDO_DIM_ELEMENT('X', minx, maxx, 0.0001), 
+                        MDSYS.SDO_DIM_ELEMENT('Y', miny, maxy, 0.0001)) as diminfo 
+             FROM ( SELECT TRUNC( MIN( v.x ) - 1,0) as minx,
+                           ROUND( MAX( v.x ) + 1,0) as maxx,
+                           TRUNC( MIN( v.y ) - 1,0) as miny,
+                           ROUND( MAX( v.y ) + 1,0) as maxy
+                      FROM (SELECT SDO_AGGR_MBR(a.{1}) as mbr
+                              FROM {0} a) b,
+                                   TABLE(mdsys.sdo_util.getvertices(b.mbr)) v
+                   )
+         ),
+         '{0}',
+         '{1}',
+         {2}
+);
+COMMIT;
+""".format(layer.name.upper(), field_nm.upper(), layer.srid)
+    )
+    
     for index in layer.schema.indices:
 #        print index, [field.name for field in index.fields]
         if index.primary_key:
@@ -114,38 +160,64 @@ def dump_indices(layer, stream0, table_space = "indx"):
             flds = []
             for field in index.fields:
                 flds.append(field.name)
-            sql = "ALTER TABLE {0} ADD PRIMARY KEY ({1});\n".format(layer.name, ", ".join(flds))
+            indx_nm = "{0}__{1}".format(layer.name, "__".join(flds))
+            md5_indx_nm = hashlib.md5(indx_nm).hexdigest()[:27]
+            sql = "ALTER TABLE {0} ADD CONSTRAINT pk_{1} PRIMARY KEY ({2});\n".format(layer.name, md5_indx_nm, ", ".join(flds))
+#            ALTER TABLE table_name
+#            add CONSTRAINT constraint_name PRIMARY KEY (column1, column2, ... column_n);
+            
             stream0.write(sql)
         else:
             #    CREATE INDEX boekie_centroid_idx ON boekie USING GIST 
             #    ("centroid" gist_geometry_ops) TABLESPACE indx;
             field_names = [field.name for field in index.fields]
             assert len(set([field.type for field in index.fields])) == 1, "only same type of fields currently allowed in one index"
-            method = "btree" #btree, hash, gist, and gin
-            opclass = ""
+#            method = "btree" #btree, hash, gist, and gin
+#            opclass = ""
+#            for field in index.fields:
+#                if field.type in spatial_types:
+#                    method = "gist"
+#                    opclass = "gist_geometry_ops"        
+#                break
+            indx_nm = "{0}__{1}".format(layer.name, "__".join(field_names))
+            md5_indx_nm = hashlib.md5(indx_nm).hexdigest()[:27]
+
+            sql = "CREATE INDEX "
+            sql += "id_{0}".format(md5_indx_nm)
+            sql += " ON {0} ".format(layer.name)
+#            sql += "USING {0} ".format(method)
+            sql += '('
+            sql += '", "'.join([field.name for field in index.fields])
+#            sql += '" {0}'.format(opclass)
+            sql += ') '
+
             for field in index.fields:
                 if field.type in spatial_types:
-                    method = "gist"
-                    opclass = "gist_geometry_ops"        
-                break
-            sql = "CREATE INDEX "
-            sql += "{0}__".format(layer.name)
-            sql += "__".join(field_names)        
-            sql += "__idx ON {0} ".format(layer.name)
-            sql += "USING {0} ".format(method)
-            sql += '("'
-            sql += '", "'.join([field.name for field in index.fields])
-            sql += '" {0}'.format(opclass)
-            sql += ') '
-            sql += "TABLESPACE {0}".format(table_space)
+                    sql += "\nINDEXTYPE IS MDSYS.SPATIAL_INDEX\n"
+#                    method = "gist"
+#                    opclass = "gist_geometry_ops"        
+                    break
+            else:
+                sql += "TABLESPACE {0}".format(table_space)
             sql += ";\n"
             stream0.write(sql)
+#            CREATE INDEX [schema.]<index_name> ON [schema.]<tableName> (column)
+#             INDEXTYPE IS MDSYS.SPATIAL_INDEX
+#             [PARAMETERS ('index_params [physical_storage_params]' )]
+#             [{ NOPARALLEL | PARALLEL [ integer ] }];
+
+#CREATE INDEX emp_ename ON emp(ename)
+#      TABLESPACE users
+#      STORAGE (INITIAL 20K
+#      NEXT 20k
+#      PCTINCREASE 75);
+      
     stream0.write("COMMIT;\n")
     return
 
 
 def dump_statistics(layer, stream0):
-    sql = """\nVACUUM ANALYZE {0};\n""".format(layer.name)
+    sql = """\nANALYZE TABLE {0} COMPUTE STATISTICS;\n""".format(layer.name)
     stream0.write(sql)
     return
 
@@ -160,14 +232,45 @@ def dump_drop(layer, stream0):
     return
 
 def dump_line(layer, feature, stream):
-    sql = ""
+    sql = "INSERT INTO {} ({}) VALUES (".format(layer.name, ", ".join([name for name in layer.schema.names]))
     for i, tp in enumerate(layer.schema.types):
         if tp in spatial_types:
             if not feature[i] is None:
+#                CREATE TYPE sdo_geometry AS OBJECT (
+#                 SDO_GTYPE NUMBER, 
+#                 SDO_SRID NUMBER,
+#                 SDO_POINT SDO_POINT_TYPE,
+#                 SDO_ELEM_INFO SDO_ELEM_INFO_ARRAY,
+#                 SDO_ORDINATES SDO_ORDINATE_ARRAY);
                 if tp == 'box2d':
-                    sql += "{0}".format(as_hexewkb(feature[i].polygon, layer.srid))
+                    # optimized rectangle
+                    sql += """MDSYS.SDO_GEOMETRY(
+                        2003,
+                        {1},
+                        NULL,
+                        SDO_ELEM_INFO_ARRAY(1,1003,3),
+                        SDO_ORDINATE_ARRAY({0.xmin}, {0.ymin}, {0.xmax}, {0.ymax})
+                      )""".format(feature[i], layer.srid)
+                elif tp == 'point':
+                    sql += """MDSYS.SDO_GEOMETRY(
+                        2001,
+                        {1},
+                        MDSYS.SDO_POINT_TYPE(
+                        {0[0]},{0[1]},null),
+                        null,
+                        null)""".format(feature[i], layer.srid)
+                elif tp == 'linestring':
+                    sql += """MDSYS.SDO_GEOMETRY(
+                        2002,
+                        {1},
+                        null, 
+                        MDSYS.SDO_ELEM_INFO_ARRAY(1,2,1),
+                        MDSYS.SDO_ORDINATE_ARRAY({0})
+                        )""".format(",".join(["{0[0]},{0[1]}".format(pt) for pt in feature[i]]), layer.srid)
                 else:
-                    sql += "{0}".format(as_hexewkb(feature[i], layer.srid))
+                    raise NotImplementedError('This geometry type {} is not yet implemented'.format(tp))
+#                    sql += "{0}".format(as_hexewkb(feature[i], layer.srid))
+                    
             elif feature[i] is None:
                 sql += "NULL"
             else:
@@ -180,23 +283,24 @@ def dump_line(layer, feature, stream):
             sql += "'{0}'".format(feature[i])
         if i != len(layer.schema.types) - 1:
             sql += ","
-    sql += "\n"
+    sql += ");\n"
     stream.write(sql)
 
 def dump_pre_data(layer, stream0):
     # dump_pre_data
-    sql = "\nBEGIN;\nCOPY {0} (".format(layer.name)
-    defs = []    
-    for name in layer.schema.names:
-        field_def = '"{0}"'.format( name )
-        defs.append(field_def)
-    sql += ", ".join(defs)
-    sql += """) FROM STDIN CSV QUOTE '"';\n"""
-    stream0.write(sql)
+#    sql = "\n--START TRANSACTION;\nCOPY {0} (".format(layer.name)
+#    defs = []    
+#    for name in layer.schema.names:
+#        field_def = '"{0}"'.format( name )
+#        defs.append(field_def)
+#    sql += ", ".join(defs)
+#    sql += """) FROM STDIN CSV QUOTE '"';\n"""
+#    stream0.write(sql)
+    pass
 
 def dump_post_data(layer, stream0):
     # dump_post_data
-    stream0.write("\.\n\nCOMMIT;\n")
+    stream0.write("\n\nCOMMIT;\n")
     
 def dump_data(layer, stream0):
     dump_pre_data(layer, stream0)

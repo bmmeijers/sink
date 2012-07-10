@@ -3,14 +3,15 @@ Created on Nov 16, 2011
 
 @author: martijn
 '''
-__version__ = '0.0.1'
+__version__ = '0.1.0'
 __author__ = 'Martijn Meijers'
 
 import shlex, subprocess
 import os, tempfile
 
-from brep.io import as_hexewkb
-from brep.conn import recordset
+#from brep.conn import recordset
+from connection.stateful import irecordset
+from simplegeo.wkb import dumps
 
 from .common import Phase
 
@@ -20,7 +21,7 @@ string_types =  ('varchar', )
 boolean_types = ('boolean',)
 date_types = ('timestamp', 'date', 'time', )
 
-def loads(layer, limit = None):
+def loads(layer, limit = None): #, filter = None):
     # Once we have defined a schema / layer definition, it would be 
     # fun to be able to load it
     fields = ",".join(layer.schema.names)
@@ -30,9 +31,11 @@ def loads(layer, limit = None):
     FROM
         {1}
     """.format(fields, layer.name)
+    # TODO: implement bbox filter on filter here
+    # would only work with one geometry column though...
     if limit is not None:
         sql += "LIMIT {0}".format(limit)
-    for item in recordset(sql):
+    for item in irecordset(sql):
         layer.append(*item)
 
 
@@ -165,11 +168,12 @@ def dump_line(layer, feature, stream):
     sql = ""
     for i, tp in enumerate(layer.schema.types):
         if tp in spatial_types:
+            assert feature[i].srid == layer.srid
             if not feature[i] is None:
                 if tp == 'box2d':
-                    sql += "{0}".format(as_hexewkb(feature[i].polygon, layer.srid))
+                    sql += "{0}".format(dumps(feature[i].polygon))
                 else:
-                    sql += "{0}".format(as_hexewkb(feature[i], layer.srid))
+                    sql += "{0}".format(dumps(feature[i]))
             elif feature[i] is None:
                 sql += "NULL"
             else:
