@@ -200,6 +200,15 @@ class StreamingLayer(object):
         # this recipe could help 
         # http://code.activestate.com/recipes/576555/
 
+# New API, instead of using Phase?
+#
+# clear()
+# werkt niet:
+# init(data=True) # default
+# append(...)
+# append(...)
+# finalize()
+
     def init(self):
         if self._phase & Phase.PREPARE:
             dump_schema(self, self._stream)
@@ -234,10 +243,11 @@ class StreamingLayer(object):
 #        self._stream.truncate(0)
         raise ValueError('clear method does not work for StreamingLayer')
 
-    def finalize(self, table_space = 'pg_default'):
+    def finalize(self, table_space = 'users'):
         # dump_post_data
         if self._phase & Phase.EXECUTE:
             dump_post_data(self, self._stream)
+
         if self._phase & Phase.FINALIZE:
             dump_indices(self, self._stream, table_space)
         if self._phase & Phase.FINALIZE:

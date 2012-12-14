@@ -4,14 +4,14 @@ Created on Nov 16, 2011
 @author: martijn
 '''
 
-__version__ = '0.0.1'
+__version__ = '0.0.2'
 __author__ = 'Martijn Meijers'
 
 #Since all table/index names must be stored in the data dictionary and only 30 
 #characters are allocated for the storage, 
 #the maximum name size is 30 characters
 
-from simplegeo import dumps
+from simplegeom.wkb import dumps
 import hashlib
 
 spatial_types = ('point', 'linestring', 'polygon', 'box2d', )
@@ -75,7 +75,15 @@ def dump_schema(layer, stream0): #schema, table_name, srid):
     table_name = layer.name
     srid = layer.srid
     #
-    sql = "--\n-- Created with sink, Oracle backend v.{0}\n-- {1}\n--\n".format(__version__, __author__)
+    sql = """--
+-- Created with sink
+-- Oracle backend v.{0}
+-- {1}
+--
+
+SET FEEDBACK OFF;
+SET DEFINE OFF; 
+""".format(__version__, __author__)
     #
 #    geom_fields = []
 #    for i, tp in enumerate(schema.types):
@@ -103,11 +111,15 @@ END;
     #
     defs = []
     for tp, name in zip(schema.types, schema.names):
-        if tp not in spatial_types:
+        if tp not in spatial_types and tp not in string_types:
             # -- add non-geometry type fields
             field_def = '{0} {1}'.format(name.lower(), tp)
             defs.append(field_def)
-        else:
+        elif tp in string_types:
+            # set to max size for varchar (required in definition)
+            field_def = '{0} {1}(4000)'.format(name.lower(), tp) 
+            defs.append(field_def)
+        elif tp in spatial_types:
             # -- add geometry type fields
             field_def = '{0} {1}'.format(name.lower(), "{}.sdo_geometry".format(GEOM_SCHEMA))
             defs.append(field_def)
@@ -135,10 +147,10 @@ VALUES (
 ( SELECT MDSYS.SDO_DIM_ARRAY( 
                         MDSYS.SDO_DIM_ELEMENT('X', minx, maxx, 0.0001), 
                         MDSYS.SDO_DIM_ELEMENT('Y', miny, maxy, 0.0001)) as diminfo 
-             FROM ( SELECT TRUNC( MIN( v.x ) - 1,0) as minx,
-                           ROUND( MAX( v.x ) + 1,0) as maxx,
-                           TRUNC( MIN( v.y ) - 1,0) as miny,
-                           ROUND( MAX( v.y ) + 1,0) as maxy
+             FROM ( SELECT 0 as minx, --TRUNC( MIN( v.x ) - 1,0) as minx,
+                           1 as maxx, --ROUND( MAX( v.x ) + 1,0) as maxx,
+                           0 as miny, --TRUNC( MIN( v.y ) - 1,0) as miny,
+                           1 as maxy --ROUND( MAX( v.y ) + 1,0) as maxy
                       FROM (SELECT SDO_AGGR_MBR(a.{1}) as mbr
                               FROM {0} a) b,
                                    TABLE(mdsys.sdo_util.getvertices(b.mbr)) v
@@ -161,8 +173,8 @@ COMMIT;
             for field in index.fields:
                 flds.append(field.name)
             indx_nm = "{0}__{1}".format(layer.name, "__".join(flds))
-            md5_indx_nm = hashlib.md5(indx_nm).hexdigest()[:27]
-            sql = "ALTER TABLE {0} ADD CONSTRAINT pk_{1} PRIMARY KEY ({2});\n".format(layer.name, md5_indx_nm, ", ".join(flds))
+            md5_indx_nm = hashlib.md5(indx_nm).hexdigest()[:26]
+            sql = "ALTER TABLE {0} ADD CONSTRAINT pky_{1} PRIMARY KEY ({2});\n".format(layer.name, md5_indx_nm, ", ".join(flds))
 #            ALTER TABLE table_name
 #            add CONSTRAINT constraint_name PRIMARY KEY (column1, column2, ... column_n);
             
@@ -180,10 +192,10 @@ COMMIT;
 #                    opclass = "gist_geometry_ops"        
 #                break
             indx_nm = "{0}__{1}".format(layer.name, "__".join(field_names))
-            md5_indx_nm = hashlib.md5(indx_nm).hexdigest()[:27]
+            md5_indx_nm = hashlib.md5(indx_nm).hexdigest()[:26]
 
             sql = "CREATE INDEX "
-            sql += "id_{0}".format(md5_indx_nm)
+            sql += "idx_{0}".format(md5_indx_nm)
             sql += " ON {0} ".format(layer.name)
 #            sql += "USING {0} ".format(method)
             sql += '('
@@ -232,8 +244,11 @@ def dump_drop(layer, stream0):
     return
 
 def dump_line(layer, feature, stream):
+    # TODO, rewrite here if feature[i] is None, it is always the same -> NULL
+    # this should be handled earlier (instead of all ifs separately)
     sql = "INSERT INTO {} ({}) VALUES (".format(layer.name, ", ".join([name for name in layer.schema.names]))
     for i, tp in enumerate(layer.schema.types):
+        sql += "\n"
         if tp in spatial_types:
             if not feature[i] is None:
 #                CREATE TYPE sdo_geometry AS OBJECT (
@@ -244,29 +259,60 @@ def dump_line(layer, feature, stream):
 #                 SDO_ORDINATES SDO_ORDINATE_ARRAY);
                 if tp == 'box2d':
                     # optimized rectangle
-                    sql += """MDSYS.SDO_GEOMETRY(
-                        2003,
-                        {1},
-                        NULL,
-                        SDO_ELEM_INFO_ARRAY(1,1003,3),
-                        SDO_ORDINATE_ARRAY({0.xmin}, {0.ymin}, {0.xmax}, {0.ymax})
-                      )""".format(feature[i], layer.srid)
+                    sql += """
+MDSYS.SDO_GEOMETRY(
+    2003,
+    {1},
+    NULL,
+    SDO_ELEM_INFO_ARRAY(1,1003,3),
+    SDO_ORDINATE_ARRAY({0.xmin}, {0.ymin}, {0.xmax}, {0.ymax})
+)""".format(feature[i], layer.srid)
                 elif tp == 'point':
-                    sql += """MDSYS.SDO_GEOMETRY(
-                        2001,
-                        {1},
-                        MDSYS.SDO_POINT_TYPE(
-                        {0[0]},{0[1]},null),
-                        null,
-                        null)""".format(feature[i], layer.srid)
+                    sql += """
+MDSYS.SDO_GEOMETRY(
+    2001,
+    {1},
+    MDSYS.SDO_POINT_TYPE(
+    {0[0]},{0[1]},null),
+    null,
+    null
+)""".format(feature[i], layer.srid)
                 elif tp == 'linestring':
-                    sql += """MDSYS.SDO_GEOMETRY(
-                        2002,
-                        {1},
-                        null, 
-                        MDSYS.SDO_ELEM_INFO_ARRAY(1,2,1),
-                        MDSYS.SDO_ORDINATE_ARRAY({0})
-                        )""".format(",".join(["{0[0]},{0[1]}".format(pt) for pt in feature[i]]), layer.srid)
+                    sql += """
+MDSYS.SDO_GEOMETRY(
+    2002,
+    {1},
+    null, 
+    MDSYS.SDO_ELEM_INFO_ARRAY(1,2,1),
+    MDSYS.SDO_ORDINATE_ARRAY({0})
+)""".format(",".join(["{0[0]},{0[1]}".format(pt) for pt in feature[i]]), layer.srid)
+                elif tp == 'polygon':
+                    
+                    elem_infos = []
+                    ordinates = []
+                    ct = 1
+                    for r, ring in enumerate(feature[i]):
+                        if r:
+                            hole = "2003"
+                        else:
+                            hole = "1003"
+                        ordinates.append(",".join(["{0[0]},{0[1]}".format(pt) for pt in ring]))
+                        elem_infos.append(",".join([str(ct), hole, "1"]))
+                        ct += 2*len(ring)
+                    elem_info = ",\n    ".join(elem_infos)
+                    ordinate = ",\n    ".join(ordinates)
+                    sql += """
+MDSYS.SDO_GEOMETRY(
+    2003, 
+    {1}, 
+    NULL,
+    MDSYS.SDO_ELEM_INFO_ARRAY(
+        {2}
+    ),
+    MDSYS.SDO_ORDINATE_ARRAY(
+        {3}
+    )
+)""".format(feature[i], layer.srid, elem_info, ordinate)
                 else:
                     raise NotImplementedError('This geometry type {} is not yet implemented'.format(tp))
 #                    sql += "{0}".format(as_hexewkb(feature[i], layer.srid))
@@ -275,8 +321,17 @@ def dump_line(layer, feature, stream):
                 sql += "NULL"
             else:
                 sql += "'{0}'".format(feature[i])
-        elif tp in numeric_types:  
+        elif tp in numeric_types and feature[i] is not None:  
             sql += "{0}".format(feature[i])
+        elif tp in date_types and feature[i] is not None:
+            if tp == 'timestamp':
+                sql += "TIMESTAMP '{0}'".format(feature[i])
+            elif tp == 'date':
+                sql += "CAST(TIMESTAMP '{0}' AS DATE)".format(feature[i])
+            elif tp == 'time':
+                sql += "CAST(TIMESTAMP '{0}' AS TIME)".format(feature[i])
+        elif tp in string_types and feature[i] is not None:
+            sql += "'{0}'".format(str(feature[i]).replace("'", r"''"))
         elif feature[i] is None:
             sql += "NULL"
         else:

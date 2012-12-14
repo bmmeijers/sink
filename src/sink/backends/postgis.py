@@ -10,8 +10,10 @@ import shlex, subprocess
 import os, tempfile
 
 #from brep.conn import recordset
-from connection.stateful import irecordset
-from simplegeo.wkb import dumps
+
+from simplegeom.wkb import dumps as as_wkb
+
+
 
 from .common import Phase
 
@@ -21,7 +23,10 @@ string_types =  ('varchar', )
 boolean_types = ('boolean',)
 date_types = ('timestamp', 'date', 'time', )
 
-def loads(layer, limit = None): #, filter = None):
+def loads(layer, limit = None, filter = None):
+    from connection.stateful import irecordset
+    from simplegeom.postgis import register
+    register()
     # Once we have defined a schema / layer definition, it would be 
     # fun to be able to load it
     fields = ",".join(layer.schema.names)
@@ -32,12 +37,20 @@ def loads(layer, limit = None): #, filter = None):
         {1}
     """.format(fields, layer.name)
     # TODO: implement bbox filter on filter here
-    # would only work with one geometry column though...
+    # in case of multiple geometry columns 
+    # we can "OR" the filter
+    # or we make it more explicit by a different way of methods
+    if filter is not None:
+        geom_fields = []
+        for i, tp in enumerate(layer.schema.types):
+            if tp in spatial_types:
+                geom_fields.append(layer.schema.names[i])
+        for field in geom_fields:
+            print field
     if limit is not None:
         sql += "LIMIT {0}".format(limit)
     for item in irecordset(sql):
         layer.append(*item)
-
 
 def dump_schema(layer, stream): #schema, table_name, srid):
     schema = layer.schema
@@ -56,7 +69,7 @@ def dump_schema(layer, stream): #schema, table_name, srid):
         if tp in spatial_types:
             geom_fields.append((i, schema.names[i])) # idx + name    
     # -- drop what is there (raises error / notice if table not there)
-    sql = "\nBEGIN;\n"
+    sql += "\nBEGIN;\n"
     for i, field_nm in geom_fields:
         sql += "\nCOMMIT;\nBEGIN;\n"
         sql += "SELECT DropGeometryColumn('{0}', '{1}');\n".format(table_name, field_nm)
@@ -95,7 +108,7 @@ def dump_schema(layer, stream): #schema, table_name, srid):
     stream.flush()
 
 
-def dump_indices(layer, stream, table_space = "pg_default"):
+def dump_indices(layer, stream, table_space = "indx"):
     stream.write("\nBEGIN;\n")
     for index in layer.schema.indices:
         field_names = [field.name for field in index.fields]
@@ -168,12 +181,17 @@ def dump_line(layer, feature, stream):
     sql = ""
     for i, tp in enumerate(layer.schema.types):
         if tp in spatial_types:
-            assert feature[i].srid == layer.srid
+            try:
+                assert feature[i].srid == layer.srid, "{} != {}".format(feature[i].srid, layer.srid)
+            except:
+                if feature[i]:
+                    feature[i].srid = layer.srid
+                #raise
             if not feature[i] is None:
                 if tp == 'box2d':
-                    sql += "{0}".format(dumps(feature[i].polygon))
+                    sql += "{0}".format(as_wkb(feature[i].polygon))
                 else:
-                    sql += "{0}".format(dumps(feature[i]))
+                    sql += "{0}".format(as_wkb(feature[i]))
             elif feature[i] is None:
                 sql += "NULL"
             else:

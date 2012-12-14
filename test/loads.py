@@ -82,7 +82,7 @@ schema = Schema([#
                  hart_punt_idx, hart_lijn_idx])
 
 layer = Layer(schema, "top10nl_wegdeel", srid=28992)
-loads(layer, limit = 10)
+loads(layer, limit = 10, filter = [(0,0), (10,10)])
 print len(layer.features), "retrieved"
 
 L = len(schema.fields)
