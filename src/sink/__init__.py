@@ -5,7 +5,7 @@ Created on Aug 18, 2010
 @author: martijn
 """
 
-__version__ = '0.4.0'
+__version__ = '0.5.0'
 __license__ = 'MIT license'
 __author__ = 'Martijn Meijers'
 
