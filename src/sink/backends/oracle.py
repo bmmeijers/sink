@@ -372,6 +372,7 @@ def dump(layer, stream, data = True):
         dump_data(layer, stream)
     dump_indices(layer, stream)
     dump_statistics(layer, stream)
+    stream.write("\nQUIT;")
 
 def dumps(layer, data = True):
     """Returns a string representation of ``layer''
