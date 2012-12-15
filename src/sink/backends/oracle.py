@@ -4,7 +4,7 @@ Created on Nov 16, 2011
 @author: martijn
 '''
 
-__version__ = '0.0.2'
+__version__ = '0.0.3'
 __author__ = 'Martijn Meijers'
 
 #Since all table/index names must be stored in the data dictionary and only 30 
@@ -246,7 +246,7 @@ def dump_drop(layer, stream0):
 def dump_line(layer, feature, stream):
     # TODO, rewrite here if feature[i] is None, it is always the same -> NULL
     # this should be handled earlier (instead of all ifs separately)
-    sql = "INSERT INTO {} ({}) VALUES (".format(layer.name, ", ".join([name for name in layer.schema.names]))
+    sql = "\nINSERT INTO {} ({}) VALUES (".format(layer.name, ", ".join([name for name in layer.schema.names]))
     for i, tp in enumerate(layer.schema.types):
         sql += "\n"
         if tp in spatial_types:
@@ -259,35 +259,12 @@ def dump_line(layer, feature, stream):
 #                 SDO_ORDINATES SDO_ORDINATE_ARRAY);
                 if tp == 'box2d':
                     # optimized rectangle
-                    sql += """
-MDSYS.SDO_GEOMETRY(
-    2003,
-    {1},
-    NULL,
-    SDO_ELEM_INFO_ARRAY(1,1003,3),
-    SDO_ORDINATE_ARRAY({0.xmin}, {0.ymin}, {0.xmax}, {0.ymax})
-)""".format(feature[i], layer.srid)
+                    sql += """MDSYS.SDO_GEOMETRY(2003, {1}, NULL, SDO_ELEM_INFO_ARRAY(1,1003,3), SDO_ORDINATE_ARRAY({0.xmin}, {0.ymin}, {0.xmax}, {0.ymax}))""".format(feature[i], layer.srid)
                 elif tp == 'point':
-                    sql += """
-MDSYS.SDO_GEOMETRY(
-    2001,
-    {1},
-    MDSYS.SDO_POINT_TYPE(
-    {0[0]},{0[1]},null),
-    null,
-    null
-)""".format(feature[i], layer.srid)
+                    sql += """MDSYS.SDO_GEOMETRY(2001, {1}, MDSYS.SDO_POINT_TYPE({0[0]},{0[1]},null),null,null)""".format(feature[i], layer.srid)
                 elif tp == 'linestring':
-                    sql += """
-MDSYS.SDO_GEOMETRY(
-    2002,
-    {1},
-    null, 
-    MDSYS.SDO_ELEM_INFO_ARRAY(1,2,1),
-    MDSYS.SDO_ORDINATE_ARRAY({0})
-)""".format(",".join(["{0[0]},{0[1]}".format(pt) for pt in feature[i]]), layer.srid)
+                    sql += """MDSYS.SDO_GEOMETRY(2002,{1}, null, MDSYS.SDO_ELEM_INFO_ARRAY(1,2,1), MDSYS.SDO_ORDINATE_ARRAY({0}))""".format(",".join(["{0[0]},{0[1]}".format(pt) for pt in feature[i]]), layer.srid)
                 elif tp == 'polygon':
-                    
                     elem_infos = []
                     ordinates = []
                     ct = 1
@@ -299,20 +276,9 @@ MDSYS.SDO_GEOMETRY(
                         ordinates.append(",".join(["{0[0]},{0[1]}".format(pt) for pt in ring]))
                         elem_infos.append(",".join([str(ct), hole, "1"]))
                         ct += 2*len(ring)
-                    elem_info = ",\n    ".join(elem_infos)
-                    ordinate = ",\n    ".join(ordinates)
-                    sql += """
-MDSYS.SDO_GEOMETRY(
-    2003, 
-    {1}, 
-    NULL,
-    MDSYS.SDO_ELEM_INFO_ARRAY(
-        {2}
-    ),
-    MDSYS.SDO_ORDINATE_ARRAY(
-        {3}
-    )
-)""".format(feature[i], layer.srid, elem_info, ordinate)
+                    elem_info = ",".join(elem_infos)
+                    ordinate = ",".join(ordinates)
+                    sql += """MDSYS.SDO_GEOMETRY(2003, {1}, NULL, MDSYS.SDO_ELEM_INFO_ARRAY({2}),MDSYS.SDO_ORDINATE_ARRAY({3}))""".format(feature[i], layer.srid, elem_info, ordinate)
                 else:
                     raise NotImplementedError('This geometry type {} is not yet implemented'.format(tp))
 #                    sql += "{0}".format(as_hexewkb(feature[i], layer.srid))
@@ -338,7 +304,7 @@ MDSYS.SDO_GEOMETRY(
             sql += "'{0}'".format(feature[i])
         if i != len(layer.schema.types) - 1:
             sql += ","
-    sql += ");\n"
+    sql += ");"
     stream.write(sql)
 
 def dump_pre_data(layer, stream0):
