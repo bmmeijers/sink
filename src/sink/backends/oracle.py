@@ -4,7 +4,7 @@ Created on Nov 16, 2011
 @author: martijn
 '''
 
-__version__ = '0.0.3'
+__version__ = '0.0.5'
 __author__ = 'Martijn Meijers'
 
 #Since all table/index names must be stored in the data dictionary and only 30 
@@ -140,22 +140,24 @@ def dump_indices(layer, stream0, table_space = "users"):
     
     for tp, field_nm in zip(layer.schema.types, layer.schema.names):
         if tp in spatial_types:
+#( SELECT MDSYS.SDO_DIM_ARRAY( 
+#                        MDSYS.SDO_DIM_ELEMENT('X', minx, maxx, 0.0001), 
+#                        MDSYS.SDO_DIM_ELEMENT('Y', miny, maxy, 0.0001)) as diminfo 
+#             FROM ( SELECT 0 as minx, --TRUNC( MIN( v.x ) - 1,0) as minx,
+#                           1 as maxx, --ROUND( MAX( v.x ) + 1,0) as maxx,
+#                           0 as miny, --TRUNC( MIN( v.y ) - 1,0) as miny,
+#                           1 as maxy --ROUND( MAX( v.y ) + 1,0) as maxy
+#                      FROM DUAL --(SELECT SDO_AGGR_MBR(a.{1}) as mbr
+#                              --FROM {0} a) b,
+#                              --     TABLE(mdsys.sdo_util.getvertices(b.mbr)) v
+#                   )
+#         ),
+
             stream0.write("""
 DELETE FROM user_sdo_geom_metadata WHERE table_name = '{0}' AND column_name = '{1}';
 INSERT INTO user_sdo_geom_metadata (diminfo, table_name, column_name, srid)
 VALUES (
-( SELECT MDSYS.SDO_DIM_ARRAY( 
-                        MDSYS.SDO_DIM_ELEMENT('X', minx, maxx, 0.0001), 
-                        MDSYS.SDO_DIM_ELEMENT('Y', miny, maxy, 0.0001)) as diminfo 
-             FROM ( SELECT 0 as minx, --TRUNC( MIN( v.x ) - 1,0) as minx,
-                           1 as maxx, --ROUND( MAX( v.x ) + 1,0) as maxx,
-                           0 as miny, --TRUNC( MIN( v.y ) - 1,0) as miny,
-                           1 as maxy --ROUND( MAX( v.y ) + 1,0) as maxy
-                      FROM (SELECT SDO_AGGR_MBR(a.{1}) as mbr
-                              FROM {0} a) b,
-                                   TABLE(mdsys.sdo_util.getvertices(b.mbr)) v
-                   )
-         ),
+         (SELECT MDSYS.SDO_DIM_ARRAY(MDSYS.SDO_DIM_ELEMENT('X', 0, 1, 0.0001), MDSYS.SDO_DIM_ELEMENT('Y', 0, 1, 0.0001)) FROM DUAL),
          '{0}',
          '{1}',
          {2}
@@ -231,6 +233,8 @@ COMMIT;
 def dump_statistics(layer, stream0):
     sql = """\nANALYZE TABLE {0} COMPUTE STATISTICS;\n""".format(layer.name)
     stream0.write(sql)
+    stream0.write("\nQUIT;")
+    stream0.flush()
     return
 
 def dump_truncate(layer, stream0):
@@ -259,11 +263,26 @@ def dump_line(layer, feature, stream):
 #                 SDO_ORDINATES SDO_ORDINATE_ARRAY);
                 if tp == 'box2d':
                     # optimized rectangle
-                    sql += """MDSYS.SDO_GEOMETRY(2003, {1}, NULL, SDO_ELEM_INFO_ARRAY(1,1003,3), SDO_ORDINATE_ARRAY({0.xmin}, {0.ymin}, {0.xmax}, {0.ymax}))""".format(feature[i], layer.srid)
+                    sql += """MDSYS.SDO_GEOMETRY(2003,
+    {1}, 
+    NULL, 
+    SDO_ELEM_INFO_ARRAY(1,1003,3), 
+    SDO_ORDINATE_ARRAY({0.xmin}, {0.ymin}, {0.xmax}, {0.ymax})
+)""".format(feature[i], layer.srid)
                 elif tp == 'point':
-                    sql += """MDSYS.SDO_GEOMETRY(2001, {1}, MDSYS.SDO_POINT_TYPE({0[0]},{0[1]},null),null,null)""".format(feature[i], layer.srid)
+                    sql += """MDSYS.SDO_GEOMETRY(2001,
+    {1}, 
+    MDSYS.SDO_POINT_TYPE({0[0]},{0[1]},null),
+    NULL,
+    NULL
+)""".format(feature[i], layer.srid)
                 elif tp == 'linestring':
-                    sql += """MDSYS.SDO_GEOMETRY(2002,{1}, null, MDSYS.SDO_ELEM_INFO_ARRAY(1,2,1), MDSYS.SDO_ORDINATE_ARRAY({0}))""".format(",".join(["{0[0]},{0[1]}".format(pt) for pt in feature[i]]), layer.srid)
+                    sql += """MDSYS.SDO_GEOMETRY(2002,
+    {1}, 
+    NULL, 
+    MDSYS.SDO_ELEM_INFO_ARRAY(1,2,1), 
+    MDSYS.SDO_ORDINATE_ARRAY({0})
+)""".format(",\n".join(["{0[0]},{0[1]}".format(pt) for pt in feature[i]]), layer.srid)
                 elif tp == 'polygon':
                     elem_infos = []
                     ordinates = []
@@ -273,12 +292,17 @@ def dump_line(layer, feature, stream):
                             hole = "2003"
                         else:
                             hole = "1003"
-                        ordinates.append(",".join(["{0[0]},{0[1]}".format(pt) for pt in ring]))
-                        elem_infos.append(",".join([str(ct), hole, "1"]))
+                        ordinates.append(",\n".join(["{0[0]},{0[1]}".format(pt) for pt in ring]))
+                        elem_infos.append(",\n".join([str(ct), hole, "1"]))
                         ct += 2*len(ring)
                     elem_info = ",".join(elem_infos)
-                    ordinate = ",".join(ordinates)
-                    sql += """MDSYS.SDO_GEOMETRY(2003, {1}, NULL, MDSYS.SDO_ELEM_INFO_ARRAY({2}),MDSYS.SDO_ORDINATE_ARRAY({3}))""".format(feature[i], layer.srid, elem_info, ordinate)
+                    ordinate = ",\n".join(ordinates)
+                    sql += """MDSYS.SDO_GEOMETRY(2003,
+    {1}, 
+    NULL, 
+    MDSYS.SDO_ELEM_INFO_ARRAY({2}),
+    MDSYS.SDO_ORDINATE_ARRAY({3})
+)""".format(feature[i], layer.srid, elem_info, ordinate)
                 else:
                     raise NotImplementedError('This geometry type {} is not yet implemented'.format(tp))
 #                    sql += "{0}".format(as_hexewkb(feature[i], layer.srid))
@@ -338,7 +362,6 @@ def dump(layer, stream, data = True):
         dump_data(layer, stream)
     dump_indices(layer, stream)
     dump_statistics(layer, stream)
-    stream.write("\nQUIT;")
 
 def dumps(layer, data = True):
     """Returns a string representation of ``layer''

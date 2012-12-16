@@ -270,16 +270,24 @@ from sink import dumps
 
 from simplegeom.geometry import Polygon, LineString, LinearRing, Point
 from datetime import datetime
-outer = LinearRing([Point(0,0), Point(10, 0), Point(5,10), Point(0,0)])
+outer = [ ]
+for i in range(10000):
+    outer.append(Point(i, 0))
+outer.extend([Point(10000, 0), Point(5,10), Point(0,0)])
+                    
 inner = LinearRing([Point(1,1), Point(9, 1), Point(5,9), Point(1,1)])
 
 defn = [gid, tdn_code, object_begin_tijd,
         bronactualiteit, 
         brontype,
         geometrie_vlak, geometrie_lijn, geometrie_punt]
+ln = LineString([Point(0,0), Point(10, 0), Point(5,10), Point(0,0)])
+for i in range(10000):
+    ln.append(Point(i, i))
 lyr = Layer(Schema(defn, []), "wazaa")
 lyr.append(10, 1003, datetime.now(),
            datetime.now(), "a beautiful product",
-           Polygon(outer, [inner]), LineString([Point(0,0), Point(10, 0), Point(5,10), Point(0,0)]), Point(100,100))
+           Polygon(LinearRing(outer), [inner]), 
+           ln, Point(100,100))
 
 print dumps(lyr)
