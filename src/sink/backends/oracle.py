@@ -19,6 +19,7 @@ numeric_types = ('integer', 'bigint', 'numeric', 'float', )
 string_types =  ('varchar', )
 boolean_types = ('boolean',)
 date_types = ('timestamp', 'date', 'time', )
+# http://docs.oracle.com/cd/B19306_01/server.102/b14200/sql_elements004.htm#i34510
 
 GEOM_SCHEMA = "mdsys"
 #raise NotImplementedError('not yet there')

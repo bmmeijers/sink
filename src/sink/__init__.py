@@ -5,7 +5,7 @@ Created on Aug 18, 2010
 @author: martijn
 """
 
-__version__ = '0.5.0'
+__version__ = '0.6.0'
 __license__ = 'MIT license'
 __author__ = 'Martijn Meijers'
 
@@ -179,7 +179,7 @@ class Layer(object):
         pass
 
 class StreamingLayer(object):
-    def __init__(self, schema, name, srid = -1, stream = None, unbuffered = False, phase = Phase.ALL):
+    def __init__(self, schema, name, srid = -1, stream = None, unbuffered = False):
         self._count = 0
         self._finalized = False
         assert len(name) > 0
@@ -187,8 +187,6 @@ class StreamingLayer(object):
         self.name = name
         self.srid = srid
         self._unbuffered = unbuffered
-        self._phase = phase
-        
         if stream is not None:
             self._stream = stream
         else:
@@ -210,12 +208,12 @@ class StreamingLayer(object):
 # finalize()
 
     def init(self):
-        if self._phase & Phase.PREPARE:
-            dump_schema(self, self._stream)
-        if self._phase & Phase.EXECUTE:
-            dump_pre_data(self, self._stream)
-        if self._unbuffered:
-            self._stream.flush()
+        dump_schema(self, self._stream)
+        self._stream.flush()
+
+    def pre_data(self):
+        dump_pre_data(self, self._stream)
+        self._stream.flush()
 
     def __len__(self):
         return self._count
@@ -226,8 +224,7 @@ class StreamingLayer(object):
             raise ValueError('append method called, while stream already finalized')
         f = self.Feature._make(attrs)
         self._count += 1
-        if self._phase & Phase.EXECUTE:
-            dump_line(self, f, self._stream)
+        dump_line(self, f, self._stream)
         if self._unbuffered:
             self._stream.flush()
         #for i, nullable in enumerate(self.schema.nullables):
@@ -243,15 +240,15 @@ class StreamingLayer(object):
 #        self._stream.truncate(0)
         raise ValueError('clear method does not work for StreamingLayer')
 
+    def post_data(self):
+        dump_post_data(self, self._stream)
+        if self._unbuffered:    
+            self._stream.flush()
+
     def finalize(self, table_space = 'users'):
         # dump_post_data
-        if self._phase & Phase.EXECUTE:
-            dump_post_data(self, self._stream)
-
-        if self._phase & Phase.FINALIZE:
-            dump_indices(self, self._stream, table_space)
-        if self._phase & Phase.FINALIZE:
-            dump_statistics(self, self._stream)
+        dump_indices(self, self._stream, table_space)
+        dump_statistics(self, self._stream)
         self._stream.flush()
 #        self._stream.close()
         self._finalized = True
