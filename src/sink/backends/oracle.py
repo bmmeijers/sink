@@ -4,7 +4,7 @@ Created on Nov 16, 2011
 @author: martijn
 '''
 
-__version__ = '0.0.6'
+__version__ = '0.0.7'
 __author__ = 'Martijn Meijers'
 
 #Since all table/index names must be stored in the data dictionary and only 30 
@@ -338,7 +338,8 @@ def dump_line(layer, feature, stream):
             sql += ''
         else:
             sql += '"{0}"'.format(feature[i])
-        if i != len(layer.schema.types) - 1 and sql[-1] != "#": # and tp not in spatial_types:
+        if i != len(layer.schema.types) - 1 and \
+            (sql[-1] != "#" and tp not in spatial_types):
             sql += ","
     sql += "\n"
     stream.write(sql)
