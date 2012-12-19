@@ -338,9 +338,9 @@ def dump_line(layer, feature, stream):
             sql += ''
         else:
             sql += '"{0}"'.format(feature[i])
-        if i != len(layer.schema.types) - 1 and \
-            (sql[-1] != "#" and tp not in spatial_types):
-            sql += ","
+        if i != len(layer.schema.types) - 1 \
+            and not (tp in spatial_types and sql[-1] == "#"):
+                sql += ","
     sql += "\n"
     stream.write(sql)
 
