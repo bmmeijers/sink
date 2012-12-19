@@ -96,7 +96,7 @@ SET DEFINE OFF;
 #        sql += "SELECT DropGeometryColumn('{0}', '{1}');\n".format(table_name, field_nm)
     sql += """
 BEGIN
-   EXECUTE IMMEDIATE 'DROP TABLE {0}';
+   EXECUTE IMMEDIATE 'DROP TABLE {0} PURGE';
 EXCEPTION
    WHEN OTHERS THEN
       IF SQLCODE != -942 THEN
@@ -138,8 +138,13 @@ END;
     stream0.write(sql)
 
 
-def dump_indices(layer, stream0, table_space = "users"):
-    stream0.write("\n--START TRANSACTION;\n")
+def dump_indices(layer, stream, table_space = "users"):
+    stream.write("""
+    SET FEEDBACK OFF;
+    SET DEFINE OFF;
+    """)
+ 
+    stream.write("\n--START TRANSACTION;\n")
     
     for tp, field_nm in zip(layer.schema.types, layer.schema.names):
         if tp in spatial_types:
@@ -156,7 +161,7 @@ def dump_indices(layer, stream0, table_space = "users"):
 #                   )
 #         ),
 
-            stream0.write("""
+            stream.write("""
 DELETE FROM user_sdo_geom_metadata WHERE table_name = '{0}' AND column_name = '{1}';
 INSERT INTO user_sdo_geom_metadata (diminfo, table_name, column_name, srid)
 VALUES (
@@ -183,7 +188,7 @@ COMMIT;
 #            ALTER TABLE table_name
 #            add CONSTRAINT constraint_name PRIMARY KEY (column1, column2, ... column_n);
             
-            stream0.write(sql)
+            stream.write(sql)
         else:
             #    CREATE INDEX boekie_centroid_idx ON boekie USING GIST 
             #    ("centroid" gist_geometry_ops) TABLESPACE indx;
@@ -217,7 +222,7 @@ COMMIT;
             else:
                 sql += "TABLESPACE {0}".format(table_space)
             sql += ";\n"
-            stream0.write(sql)
+            stream.write(sql)
 #            CREATE INDEX [schema.]<index_name> ON [schema.]<tableName> (column)
 #             INDEXTYPE IS MDSYS.SPATIAL_INDEX
 #             [PARAMETERS ('index_params [physical_storage_params]' )]
@@ -229,25 +234,25 @@ COMMIT;
 #      NEXT 20k
 #      PCTINCREASE 75);
       
-    stream0.write("COMMIT;\n")
+    stream.write("COMMIT;\n")
     return
 
 
-def dump_statistics(layer, stream0):
+def dump_statistics(layer, stream):
     sql = """\nANALYZE TABLE {0} COMPUTE STATISTICS;\n""".format(layer.name)
-    stream0.write(sql)
-    stream0.write("\nQUIT;")
-    stream0.flush()
+    stream.write(sql)
+    stream.write("\nQUIT;")
+    stream.flush()
     return
 
-def dump_truncate(layer, stream0):
+def dump_truncate(layer, stream):
     sql = """\nTRUNCATE {0};\n""".format(layer.name)
-    stream0.write(sql)
+    stream.write(sql)
     return
 
-def dump_drop(layer, stream0):
+def dump_drop(layer, stream):
     sql = """\nDROP TABLE {0};\n""".format(layer.name)
-    stream0.write(sql)
+    stream.write(sql)
     return
 
 def dump_line(layer, feature, stream):
@@ -332,8 +337,8 @@ def dump_line(layer, feature, stream):
         elif feature[i] is None:
             sql += ''
         else:
-            sql += "'{0}'".format(feature[i])
-        if i != len(layer.schema.types) - 1 and sql[-1] != "#":# and tp not in spatial_types:
+            sql += '"{0}"'.format(feature[i])
+        if i != len(layer.schema.types) - 1 and sql[-1] != "#": # and tp not in spatial_types:
             sql += ","
     sql += "\n"
     stream.write(sql)
@@ -380,7 +385,7 @@ fields terminated by ',' optionally enclosed by '"'
                 field_def = """
 {0} column object NULLIF {0}.sdo_gtype = "NULL" -- empty point: NULL,NULL,NULL,NULL
 (
-    sdo_gtype, -- NULLIF {0}.sdo_gtype = "NULL",
+    sdo_gtype,
     sdo_srid,
     sdo_point column object
     (
@@ -393,7 +398,7 @@ fields terminated by ',' optionally enclosed by '"'
                 field_def = """
 {0} column object NULLIF {0}.sdo_gtype = "NULL" -- empty line/polygon: NULL,NULL,##
 (
-    sdo_gtype, -- NULLIF {0}.sdo_gtype = "NULL",
+    sdo_gtype,
     sdo_srid,
     sdo_elem_info varray terminated by '#' (till_element_info),
     sdo_ordinates varray terminated by '#' (after_element_info)
@@ -423,7 +428,7 @@ BEGINDATA
 
 def dump_post_data(layer, stream):
     # dump_post_data
-    stream.write("\n\nCOMMIT;\n")
+    stream.write("")
     
 def dump_data(layer, stream):
     dump_pre_data(layer, stream)
