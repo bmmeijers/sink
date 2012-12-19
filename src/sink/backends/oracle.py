@@ -4,7 +4,7 @@ Created on Nov 16, 2011
 @author: martijn
 '''
 
-__version__ = '0.0.5'
+__version__ = '0.0.6'
 __author__ = 'Martijn Meijers'
 
 #Since all table/index names must be stored in the data dictionary and only 30 
@@ -72,19 +72,20 @@ def loads(man0):
 #          SDO_ordinate_array (-109,37,-102,40));
 
 def dump_schema(layer, stream0): #schema, table_name, srid):
+    from sink import __version__ as __sink_version__
     schema = layer.schema
     table_name = layer.name
     srid = layer.srid
     #
     sql = """--
--- Created with sink
--- Oracle backend v.{0}
--- {1}
+-- Created with sink v.{0}
+-- Oracle backend v.{1}
+-- {2}
 --
 
 SET FEEDBACK OFF;
 SET DEFINE OFF; 
-""".format(__version__, __author__)
+""".format(__sink_version__, __version__, __author__)
     #
 #    geom_fields = []
 #    for i, tp in enumerate(schema.types):
@@ -133,6 +134,7 @@ END;
 #            tp = 'POLYGON'
 #        sql += "SELECT AddGeometryColumn('{0}', '{1}', '{2}', '{3}', 2);\n".format(table_name, field_nm.lower(), srid, tp)
     sql += "COMMIT;\n"
+    sql += "QUIT;\n"
     stream0.write(sql)
 
 
@@ -251,40 +253,51 @@ def dump_drop(layer, stream0):
 def dump_line(layer, feature, stream):
     # TODO, rewrite here if feature[i] is None, it is always the same -> NULL
     # this should be handled earlier (instead of all ifs separately)
-    sql = "\nINSERT INTO {} ({}) VALUES (".format(layer.name, ", ".join([name for name in layer.schema.names]))
+    #sql = "\nINSERT INTO {} ({}) VALUES (".format(layer.name, ", ".join([name for name in layer.schema.names]))
+    sql = ""
     for i, tp in enumerate(layer.schema.types):
-        sql += "\n"
+        #sql += "\n"
         if tp in spatial_types:
-            if not feature[i] is None:
+            
 #                CREATE TYPE sdo_geometry AS OBJECT (
 #                 SDO_GTYPE NUMBER, 
 #                 SDO_SRID NUMBER,
 #                 SDO_POINT SDO_POINT_TYPE,
 #                 SDO_ELEM_INFO SDO_ELEM_INFO_ARRAY,
 #                 SDO_ORDINATES SDO_ORDINATE_ARRAY);
-                if tp == 'box2d':
-                    # optimized rectangle
-                    sql += """MDSYS.SDO_GEOMETRY(2003,
-    {1}, 
-    NULL, 
-    SDO_ELEM_INFO_ARRAY(1,1003,3), 
-    SDO_ORDINATE_ARRAY({0.xmin}, {0.ymin}, {0.xmax}, {0.ymax})
-)""".format(feature[i], layer.srid)
-                elif tp == 'point':
-                    sql += """MDSYS.SDO_GEOMETRY(2001,
-    {1}, 
-    MDSYS.SDO_POINT_TYPE({0[0]},{0[1]},null),
-    NULL,
-    NULL
-)""".format(feature[i], layer.srid)
-                elif tp == 'linestring':
-                    sql += """MDSYS.SDO_GEOMETRY(2002,
-    {1}, 
-    NULL, 
-    MDSYS.SDO_ELEM_INFO_ARRAY(1,2,1), 
-    MDSYS.SDO_ORDINATE_ARRAY({0})
-)""".format(",\n".join(["{0[0]},{0[1]}".format(pt) for pt in feature[i]]), layer.srid)
-                elif tp == 'polygon':
+            if tp == 'box2d':
+                # optimized rectangle
+#                    sql += """MDSYS.SDO_GEOMETRY(2003,
+#    {1}, 
+#    NULL, 
+#    SDO_ELEM_INFO_ARRAY(1,1003,3), 
+#    SDO_ORDINATE_ARRAY({0.xmin}, {0.ymin}, {0.xmax}, {0.ymax})
+#)""".format(feature[i], layer.srid)
+                raise NotImplementedError("OOPS, box2d not there yet")
+            elif tp == 'point':
+#                    sql += """MDSYS.SDO_GEOMETRY(2001,
+#    {1}, 
+#    MDSYS.SDO_POINT_TYPE({0[0]},{0[1]},null),
+#    NULL,
+#    NULL
+#)""".format(feature[i], layer.srid)
+                if not feature[i] is None:
+                    sql += "2001,{1},{0[0]},{0[1]}".format(feature[i], layer.srid)
+                else:
+                    sql += 'NULL,NULL,NULL,NULL'
+            elif tp == 'linestring':
+                if not feature[i] is None:
+                    sql += "2002,{1},1,2,1#{0}#".format(",".join(["{0[0]},{0[1]}".format(pt) for pt in feature[i]]), layer.srid)
+                else:
+                    sql += 'NULL,NULL,##'
+#                    sql += """MDSYS.SDO_GEOMETRY(2002,
+#    {1}, 
+#    NULL, 
+#    MDSYS.SDO_ELEM_INFO_ARRAY(1,2,1), 
+#    MDSYS.SDO_ORDINATE_ARRAY({0})
+#)""".format(",\n".join(["{0[0]},{0[1]}".format(pt) for pt in feature[i]]), layer.srid)
+            elif tp == 'polygon':
+                if not feature[i] is None:
                     elem_infos = []
                     ordinates = []
                     ct = 1
@@ -293,46 +306,49 @@ def dump_line(layer, feature, stream):
                             hole = "2003"
                         else:
                             hole = "1003"
-                        ordinates.append(",\n".join(["{0[0]},{0[1]}".format(pt) for pt in ring]))
-                        elem_infos.append(",\n".join([str(ct), hole, "1"]))
+                        ordinates.append(",".join(["{0[0]},{0[1]}".format(pt) for pt in ring]))
+                        elem_infos.append(",".join([str(ct), hole, "1"]))
                         ct += 2*len(ring)
                     elem_info = ",".join(elem_infos)
-                    ordinate = ",\n".join(ordinates)
-                    sql += """MDSYS.SDO_GEOMETRY(2003,
-    {1}, 
-    NULL, 
-    MDSYS.SDO_ELEM_INFO_ARRAY({2}),
-    MDSYS.SDO_ORDINATE_ARRAY({3})
-)""".format(feature[i], layer.srid, elem_info, ordinate)
+                    ordinate = ",".join(ordinates)
+                    sql += "2003,{1},{2}#{3}#".format(feature[i], layer.srid, elem_info, ordinate)
                 else:
-                    raise NotImplementedError('This geometry type {} is not yet implemented'.format(tp))
-#                    sql += "{0}".format(as_hexewkb(feature[i], layer.srid))
-                    
-            elif feature[i] is None:
-                sql += "NULL"
+                    sql += 'NULL,NULL,##'
             else:
-                sql += "'{0}'".format(feature[i])
+                raise NotImplementedError('This geometry type {} is not yet implemented'.format(tp))
+#            else:
+#                sql += "'{0}'".format(feature[i])
         elif tp in numeric_types and feature[i] is not None:  
             sql += "{0}".format(feature[i])
         elif tp in date_types and feature[i] is not None:
             if tp == 'timestamp':
-                sql += "TIMESTAMP '{0}'".format(feature[i])
+                sql += '"{0}"'.format(feature[i].strftime("%Y-%m-%d %H:%M:%S"))
             elif tp == 'date':
-                sql += "CAST(TIMESTAMP '{0}' AS DATE)".format(feature[i])
+                sql += '"{0}"'.format(feature[i].strftime("%Y-%m-%d"))
             elif tp == 'time':
-                sql += "CAST(TIMESTAMP '{0}' AS TIME)".format(feature[i])
+                sql += '"{0}"'.format(feature[i].strftime("%H:%M:%S"))
         elif tp in string_types and feature[i] is not None:
-            sql += "'{0}'".format(str(feature[i]).replace("'", r"''"))
+            sql += '"{0}"'.format(str(feature[i])) #.replace("'", r"''"))
         elif feature[i] is None:
-            sql += "NULL"
+            sql += ''
         else:
             sql += "'{0}'".format(feature[i])
-        if i != len(layer.schema.types) - 1:
+        if i != len(layer.schema.types) - 1 and sql[-1] != "#":# and tp not in spatial_types:
             sql += ","
-    sql += ");"
+    sql += "\n"
     stream.write(sql)
 
-def dump_pre_data(layer, stream0):
+def dump_pre_data(layer, stream):
+    stream.write("""
+-- Load with
+--
+-- # conventional path load
+-- sqlldr user/pwd@db control=load_test.data bad=load_test.bad discard=load_test.dis log=load_test.log readsize=1000000 bindsize=1000000 rows=10000""")
+    stream.write("""
+-- # direct path load
+-- sqlldr user/pwd@db control=load_test.data bad=load_test.bad discard=load_test.dis log=load_test.log direct=true readsize=1000000
+""")
+    
     # dump_pre_data
 #    sql = "\n--START TRANSACTION;\nCOPY {0} (".format(layer.name)
 #    defs = []    
@@ -341,18 +357,79 @@ def dump_pre_data(layer, stream0):
 #        defs.append(field_def)
 #    sql += ", ".join(defs)
 #    sql += """) FROM STDIN CSV QUOTE '"';\n"""
-#    stream0.write(sql)
-    pass
+#    stream.write(sql)
 
-def dump_post_data(layer, stream0):
-    # dump_post_data
-    stream0.write("\n\nCOMMIT;\n")
+    # see for examples of ctl files
+    # http://docs.oracle.com/cd/B10500_01/server.920/a96652/ch10.htm#1006689
+
+    stream.write(
+"""
+load data
+infile *
+insert into table {0}
+fields terminated by ',' optionally enclosed by '"'
+(
+""".format(layer.name.upper())
+    )
+    defs = []
+    sql =""
+    for tp, name in zip(layer.schema.types, layer.schema.names):
+        if tp in spatial_types:
+            # -- add geometry type fields
+            if tp == "point":
+                field_def = """
+{0} column object NULLIF {0}.sdo_gtype = "NULL" -- empty point: NULL,NULL,NULL,NULL
+(
+    sdo_gtype, -- NULLIF {0}.sdo_gtype = "NULL",
+    sdo_srid,
+    sdo_point column object
+    (
+      x,
+      y
+    )
+)""".format(name.lower())
+                defs.append(field_def)
+            elif tp == "linestring" or tp == "polygon":
+                field_def = """
+{0} column object NULLIF {0}.sdo_gtype = "NULL" -- empty line/polygon: NULL,NULL,##
+(
+    sdo_gtype, -- NULLIF {0}.sdo_gtype = "NULL",
+    sdo_srid,
+    sdo_elem_info varray terminated by '#' (till_element_info),
+    sdo_ordinates varray terminated by '#' (after_element_info)
+)""".format(name.lower())
+                defs.append(field_def)
+            elif tp == "box2d":
+                raise NotImplementedError("box2d not there yet")
+        elif tp in date_types:
+            if tp == "timestamp":
+                field_def = '{0} DATE "YYYY-MM-DD HH24:MI:SS" NULLIF {0} = BLANKS'.format(name.lower(), tp)
+            elif tp == "date":
+                field_def = '{0} DATE "YYYY-MM-DD" NULLIF {0} = BLANKS'.format(name.lower(), tp)
+            elif tp == "time":
+                raise NotImplementedError('not yet there, time field')
+            defs.append(field_def)
+        else:
+            # -- add non-geometry type fields, all as char for sql*ldr
+            field_def = '{0} NULLIF {0} = BLANKS'.format(name.lower(), tp)
+            defs.append(field_def)
     
-def dump_data(layer, stream0):
-    dump_pre_data(layer, stream0)
+    sql += ",\n".join(defs)
+    sql += ")\n"
+    stream.write(sql)
+    stream.write("""
+BEGINDATA
+""")
+
+def dump_post_data(layer, stream):
+    # dump_post_data
+    stream.write("\n\nCOMMIT;\n")
+    
+def dump_data(layer, stream):
+    dump_pre_data(layer, stream)
     for feature in layer.features:
-        dump_line(layer, feature, stream0)
-    dump_post_data(layer, stream0)
+        dump_line(layer, feature, stream)
+    dump_post_data(layer, stream)
     return
 
 def dump(layer, stream, data = True):
@@ -371,8 +448,8 @@ def dumps(layer, data = True):
         from cStringIO import StringIO
     except ImportError:
         from StringIO import StringIO
-    stream0 = StringIO()
-    dump(layer, stream0, data)
-    ret = stream0.getvalue()
-    stream0.close()
+    stream = StringIO()
+    dump(layer, stream, data)
+    ret = stream.getvalue()
+    stream.close()
     return ret
