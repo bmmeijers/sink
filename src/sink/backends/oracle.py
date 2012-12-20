@@ -335,7 +335,7 @@ def dump_line(layer, feature, stream):
         elif tp in string_types and feature[i] is not None:
             sql += '"{0}"'.format(str(feature[i])) #.replace("'", r"''"))
         elif feature[i] is None:
-            sql += ''
+            sql += 'NULL'
         else:
             sql += '"{0}"'.format(feature[i])
         if i != len(layer.schema.types) - 1 \
@@ -371,11 +371,11 @@ def dump_pre_data(layer, stream):
     stream.write(
 """
 load data
-infile *
+infile "{1}"
 insert into table {0}
 fields terminated by ',' optionally enclosed by '"'
 (
-""".format(layer.name.upper())
+""".format(layer.name.upper(), stream.name.replace('.ctl', '.sql'))
     )
     defs = []
     sql =""
@@ -409,23 +409,23 @@ fields terminated by ',' optionally enclosed by '"'
                 raise NotImplementedError("box2d not there yet")
         elif tp in date_types:
             if tp == "timestamp":
-                field_def = '{0} DATE "YYYY-MM-DD HH24:MI:SS" NULLIF {0} = BLANKS'.format(name.lower(), tp)
+                field_def = '{0} DATE "YYYY-MM-DD HH24:MI:SS" NULLIF {0} = "NULL"'.format(name.lower(), tp)
             elif tp == "date":
-                field_def = '{0} DATE "YYYY-MM-DD" NULLIF {0} = BLANKS'.format(name.lower(), tp)
+                field_def = '{0} DATE "YYYY-MM-DD" NULLIF {0} = "NULL"'.format(name.lower(), tp)
             elif tp == "time":
                 raise NotImplementedError('not yet there, time field')
             defs.append(field_def)
         else:
             # -- add non-geometry type fields, all as char for sql*ldr
-            field_def = '{0} NULLIF {0} = BLANKS'.format(name.lower(), tp)
+            field_def = '{0} NULLIF {0} = "NULL"'.format(name.lower(), tp)
             defs.append(field_def)
     
     sql += ",\n".join(defs)
     sql += ")\n"
     stream.write(sql)
-    stream.write("""
-BEGINDATA
-""")
+#    stream.write("""
+#BEGINDATA
+#""")
 
 def dump_post_data(layer, stream):
     # dump_post_data
