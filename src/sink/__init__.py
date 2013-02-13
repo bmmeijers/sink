@@ -5,7 +5,7 @@ Created on Aug 18, 2010
 @author: martijn
 """
 
-__version__ = '0.6.1'
+__version__ = '0.7.0'
 __license__ = 'MIT license'
 __author__ = 'Martijn Meijers'
 
@@ -91,7 +91,7 @@ def use(name):
 #    globals()['dump'] = method
     lst = ['spatial_types', 'numeric_types', 'string_types', 'date_types', 'boolean_types',
             'dump', 'dumps', 'loads',
-            'dump_schema',
+            'dump_schema', 'dump_drop',
             'dump_pre_data', 'dump_line', 'dump_post_data', 'dump_data',
             'dump_indices',
             'dump_statistics']
@@ -149,11 +149,12 @@ class Field(object):
         self.decimals = decimals   # for floats, put precision behind comma
 
 class Layer(object):
-    def __init__(self, schema, name, srid = -1):
+    def __init__(self, schema, name, srid = -1, options = None):
         assert len(name) > 0
         self.schema = schema
         self.name = name
         self.srid = srid
+        self.options = options
         self.features = []
         self.Feature = collections.namedtuple('Feature', ", ".join(self.schema.names))
 
@@ -177,15 +178,20 @@ class Layer(object):
 
     def finalize(self):
         pass
+    
+    def drop(self):
+        dump_drop(self)
+
 
 class StreamingLayer(object):
-    def __init__(self, schema, name, srid = -1, stream = None, unbuffered = False):
+    def __init__(self, schema, name, srid = -1, stream = None, unbuffered = False, options = None):
         self._count = 0
         self._finalized = False
         assert len(name) > 0
         self.schema = schema
         self.name = name
         self.srid = srid
+        self.options = options
         self._unbuffered = unbuffered
         if stream is not None:
             self._stream = stream
@@ -252,6 +258,10 @@ class StreamingLayer(object):
         self._stream.flush()
 #        self._stream.close()
         self._finalized = True
+    
+    def drop(self):
+        dump_drop(self)
+
 
 class Index(object):
     def __init__(self, fields, primary_key = False, cluster = False):

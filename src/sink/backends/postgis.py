@@ -56,6 +56,7 @@ def dump_schema(layer, stream): #schema, table_name, srid):
     schema = layer.schema
     table_name = layer.name
     srid = layer.srid
+    options = layer.options
     #
     sql = """--
 -- Created with sink
@@ -78,7 +79,7 @@ def dump_schema(layer, stream): #schema, table_name, srid):
     sql += "\nCOMMIT;\n"
     sql += "\nBEGIN;\n"
     # -- create table
-    sql += "CREATE TABLE {0} (".format(table_name)
+    sql += "CREATE {0} TABLE {1} (".format(options, table_name)
     #
     defs = []
     for tp, name in zip(schema.types, schema.names):
@@ -172,7 +173,7 @@ def dump_truncate(layer, stream):
     return
 
 def dump_drop(layer, stream):
-    sql = """\nDROP TABLE {0};\n""".format(layer.name)
+    sql = """\nDROP TABLE {0} IF EXISTS;\n""".format(layer.name)
     stream.write(sql)
     stream.flush()
     return
