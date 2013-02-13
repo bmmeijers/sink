@@ -13,6 +13,9 @@ import collections
 import sys
 from backends.common import Phase
 
+import logging
+log = logging.getLogger(__name__)
+
 
 # Probably this is also helpful:
 # http://code.google.com/p/web2py/source/browse/gluon/dal.py
@@ -179,9 +182,6 @@ class Layer(object):
     def finalize(self):
         pass
     
-    def drop(self):
-        dump_drop(self)
-
 
 class StreamingLayer(object):
     def __init__(self, schema, name, srid = -1, stream = None, unbuffered = False, options = None):
@@ -251,7 +251,7 @@ class StreamingLayer(object):
         if self._unbuffered:    
             self._stream.flush()
 
-    def finalize(self, table_space = 'users'):
+    def finalize(self, table_space = 'indx'):
         # dump_post_data
         dump_indices(self, self._stream, table_space)
         dump_statistics(self, self._stream)
@@ -260,7 +260,8 @@ class StreamingLayer(object):
         self._finalized = True
     
     def drop(self):
-        dump_drop(self)
+        log.info("Dropping table {}".format(self.name))
+        dump_drop(self, self._stream)
 
 
 class Index(object):

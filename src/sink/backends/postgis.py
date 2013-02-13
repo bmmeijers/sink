@@ -17,6 +17,9 @@ from simplegeom.wkb import dumps as as_wkb
 
 from .common import Phase
 
+import logging
+log = logging.getLogger(__name__)
+
 spatial_types = ('point', 'linestring', 'polygon', 'box2d', )
 numeric_types = ('integer', 'bigint', 'numeric', 'float', )
 string_types =  ('varchar', )
@@ -56,7 +59,10 @@ def dump_schema(layer, stream): #schema, table_name, srid):
     schema = layer.schema
     table_name = layer.name
     srid = layer.srid
-    options = layer.options
+    if layer.options:
+        options = layer.options
+    else:
+        options = ""
     #
     sql = """--
 -- Created with sink
@@ -105,12 +111,15 @@ def dump_schema(layer, stream): #schema, table_name, srid):
 #            raise ValueError("Unknown dimension ({0}) given for geometry".format(dim))
         sql += "SELECT AddGeometryColumn('{0}', '{1}', '{2}', '{3}', 2);\n".format(table_name, field_nm.lower(), srid, tp)
     sql += "COMMIT;\n"
+    log.debug(sql)
     stream.write(sql)
     stream.flush()
 
 
 def dump_indices(layer, stream, table_space = "indx"):
-    stream.write("\nBEGIN;\n")
+    sql = "\nBEGIN;\nSET default_tablespace = {};\n".format(table_space)
+    stream.write(sql)
+    log.debug(sql)
     for index in layer.schema.indices:
         field_names = [field.name for field in index.fields]
         index_nm = "{0}__".format(layer.name)
@@ -155,6 +164,7 @@ def dump_indices(layer, stream, table_space = "indx"):
             #CLUSTER indexname ON tablename
             sql = "CLUSTER {0} ON {1};\n".format(index_nm, layer.name)
             stream.write(sql)
+        log.debug(sql)
     stream.write("COMMIT;\n")
     stream.flush()
     return
@@ -173,7 +183,8 @@ def dump_truncate(layer, stream):
     return
 
 def dump_drop(layer, stream):
-    sql = """\nDROP TABLE {0} IF EXISTS;\n""".format(layer.name)
+    sql = """BEGIN;\nDROP TABLE IF EXISTS {0};\nCOMMIT;\n""".format(layer.name)
+    log.debug(sql)
     stream.write(sql)
     stream.flush()
     return
