@@ -4,7 +4,7 @@ Created on Nov 16, 2011
 @author: martijn
 '''
 
-__version__ = '0.0.8'
+__version__ = '0.0.9'
 __author__ = 'Martijn Meijers'
 
 #Since all table/index names must be stored in the data dictionary and only 30 
@@ -373,6 +373,10 @@ def dump_pre_data(layer, stream):
     # see for examples of ctl files
     # http://docs.oracle.com/cd/B10500_01/server.920/a96652/ch10.htm#1006689
 
+    if hasattr(stream, 'name'):
+        file_nm = stream.name.replace('.ctl', '.dat')
+    else:
+        file_nm = "<file_nm>"
     stream.write(
 """
 load data
@@ -380,7 +384,7 @@ infile "{1}"
 insert into table {0}
 fields terminated by ',' optionally enclosed by '"'
 (
-""".format(layer.name.upper(), stream.name.replace('.ctl', '.dat'))
+""".format(layer.name.upper(), file_nm)
     )
     defs = []
     sql =""
