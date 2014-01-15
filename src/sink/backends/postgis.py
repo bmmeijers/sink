@@ -24,6 +24,9 @@ boolean_types = ('boolean',)
 date_types = ('timestamp', 'date', 'time', )
 
 def loads(layer, limit = None, filter = None):
+    
+    raise NotImplementedError('to be updated')
+    
     from connection.stateful import irecordset
     from simplegeom.postgis import register
     register()
