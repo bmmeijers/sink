@@ -1,3 +1,6 @@
+import warnings
+warnings.warn("deprecated", DeprecationWarning)
+
 from sink import Schema, Field, Index, Layer, StreamingLayer
 
 # if you want to switch backend, do it here, 
@@ -7,10 +10,10 @@ use('oracle')
 #use('postgis')
 
 from sink import dump, dumps
-from sink import Phase
+#from sink import SCHEMA, DATA, INDICES, STATISTICS, ALL
 
 def test():
-    from simplegeom.geometry import Point, Envelope
+    from brep.geometry import Point, Envelope
     from StringIO import StringIO
     
     gid = Field("edge_id", "numeric")
@@ -88,11 +91,11 @@ def test_stream():
     
 #    fh = open('/tmp/stream', 'w')
     
-    layer = StreamingLayer(schema, "boekie", phase = Phase.ALL) #stream = fh)
-    layer.append(1, 5, 6, 15, 16, Point(10, 10), Point(10, 10), Envelope(0,0,10, 10))
-    layer.append(2, 5, 6, 15, 16, Point(10,15), Point(10, 10), Envelope(0,0,10, 10))
-    layer.finalize()
-    
+#     layer = StreamingLayer(schema, "boekie", what = ALL) #stream = fh)
+#     layer.append(1, 5, 6, 15, 16, Point(10, 10), Point(10, 10), Envelope(0,0,10, 10))
+#     layer.append(2, 5, 6, 15, 16, Point(10,15), Point(10, 10), Envelope(0,0,10, 10))
+#     layer.finalize()
+#     
 #    fh.close()
 
 if __name__ == '__main__':

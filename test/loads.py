@@ -1,3 +1,5 @@
+import warnings
+warnings.warn("deprecated", DeprecationWarning)
 from sink import Field, Schema, Index, Layer, Phase, loads
 
 # generic attributes
