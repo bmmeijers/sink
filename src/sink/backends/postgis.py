@@ -18,7 +18,7 @@ from simplegeom.wkb import dumps as as_wkb
 from .common import Phase
 
 spatial_types = ('point', 'linestring', 'polygon', 'box2d', )
-numeric_types = ('integer', 'bigint', 'numeric', 'float', )
+numeric_types = ('integer', 'bigint', 'numeric', 'float', 'float8' )
 string_types =  ('varchar', )
 boolean_types = ('boolean',)
 date_types = ('timestamp', 'date', 'time', )
