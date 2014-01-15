@@ -1,5 +1,6 @@
 import os, tempfile, shutil, subprocess
-from connection.connect import auth_params
+from connection import auth_params
+import shlex
 
 # file backend:
 # -------------
@@ -68,15 +69,22 @@ class FileBasedBulkloader(Bulkloader):
     def _post(self):
         self._stream.close()
         auth = auth_params()
-        cli = 'psql -d {} -f {}'.format(auth['database'], self._stream.name)
-        op = subprocess.Popen(cli.split(' '), 
+        # os.putenv('PGPASSWORD', '{0[password]}'.format(auth))
+        my_env = os.environ.copy()
+        my_env['PGPASSWORD'] = '{0[password]}'.format(auth)
+        exe = 'psql -U {0[username]} -d {0[database]} -h {0[host]} -f {1}'.format(auth, self._stream.name)
+        cli = exe.split()
+        op = subprocess.Popen(cli, 
                               stdout=subprocess.PIPE, 
-                              stderr=subprocess.PIPE)
+                              stderr=subprocess.PIPE,
+                              env=my_env)
         R = op.poll()
         if R:
             res = op.communicate()
             raise ValueError(res[1])
-        return op.communicate()
+        stdoutdata, stderrdata = op.communicate()
+        # this will be written in _result, see close()
+        return stdoutdata, stderrdata 
 
 
 class FifoBasedBulkloader(Bulkloader):
@@ -101,27 +109,33 @@ class FifoBasedBulkloader(Bulkloader):
         self._stream.close()
         return self._op.communicate()
 
+
 def test():
     sql = 'SELECT version();'
     text = 'SELECT postgis_full_version();'
     
     man0 = FileBasedBulkloader()
-    man1 = FifoBasedBulkloader()
+    #man1 = FifoBasedBulkloader()
     
     stream0 = man0.stream()
-    stream1 = man1.stream()
+    #stream1 = man1.stream()
     
     stream0.write(sql)
-    stream1.write(sql)
+    #stream1.write(sql)
     
     stream0.write(text)
-    stream1.write(text)
+    #stream1.write(text)
     
     man0.close()
-    man1.close()
-    
+    print """stdout"""
     print man0.result()[0]
-    print man1.result()[0]
+    print "--"
+    print """stderr"""
+    print man0.result()[1]
+    print "--"
+    #man1.close()
+    print 'done'
+    #print man1.result()[0]
     
     #try:
     #    cli = 'psql -d test -f ' + filename
