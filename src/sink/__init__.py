@@ -5,13 +5,16 @@ Created on Aug 18, 2010
 @author: martijn
 """
 
-__version__ = '0.4.0'
+__version__ = '0.7.0'
 __license__ = 'MIT license'
 __author__ = 'Martijn Meijers'
 
 import collections
 import sys
 from backends.common import Phase
+
+import logging
+log = logging.getLogger(__name__)
 
 
 # Probably this is also helpful:
@@ -91,7 +94,7 @@ def use(name):
 #    globals()['dump'] = method
     lst = ['spatial_types', 'numeric_types', 'string_types', 'date_types', 'boolean_types',
             'dump', 'dumps', 'loads',
-            'dump_schema',
+            'dump_schema', 'dump_drop',
             'dump_pre_data', 'dump_line', 'dump_post_data', 'dump_data',
             'dump_indices',
             'dump_statistics']
@@ -149,11 +152,12 @@ class Field(object):
         self.decimals = decimals   # for floats, put precision behind comma
 
 class Layer(object):
-    def __init__(self, schema, name, srid = -1):
+    def __init__(self, schema, name, srid = -1, options = None):
         assert len(name) > 0
         self.schema = schema
         self.name = name
         self.srid = srid
+        self.options = options
         self.features = []
         self.Feature = collections.namedtuple('Feature', ", ".join(self.schema.names))
 
@@ -177,18 +181,18 @@ class Layer(object):
 
     def finalize(self):
         pass
+    
 
 class StreamingLayer(object):
-    def __init__(self, schema, name, srid = -1, stream = None, unbuffered = False, phase = Phase.ALL):
+    def __init__(self, schema, name, srid = -1, stream = None, unbuffered = False, options = None):
         self._count = 0
         self._finalized = False
         assert len(name) > 0
         self.schema = schema
         self.name = name
         self.srid = srid
+        self.options = options
         self._unbuffered = unbuffered
-        self._phase = phase
-        
         if stream is not None:
             self._stream = stream
         else:
@@ -210,12 +214,12 @@ class StreamingLayer(object):
 # finalize()
 
     def init(self):
-        if self._phase & Phase.PREPARE:
-            dump_schema(self, self._stream)
-        if self._phase & Phase.EXECUTE:
-            dump_pre_data(self, self._stream)
-        if self._unbuffered:
-            self._stream.flush()
+        dump_schema(self, self._stream)
+        self._stream.flush()
+
+    def pre_data(self):
+        dump_pre_data(self, self._stream)
+        self._stream.flush()
 
     def __len__(self):
         return self._count
@@ -226,8 +230,7 @@ class StreamingLayer(object):
             raise ValueError('append method called, while stream already finalized')
         f = self.Feature._make(attrs)
         self._count += 1
-        if self._phase & Phase.EXECUTE:
-            dump_line(self, f, self._stream)
+        dump_line(self, f, self._stream)
         if self._unbuffered:
             self._stream.flush()
         #for i, nullable in enumerate(self.schema.nullables):
@@ -243,18 +246,24 @@ class StreamingLayer(object):
 #        self._stream.truncate(0)
         raise ValueError('clear method does not work for StreamingLayer')
 
-    def finalize(self, table_space = 'users'):
-        # dump_post_data
-        if self._phase & Phase.EXECUTE:
-            dump_post_data(self, self._stream)
+    def post_data(self):
+        dump_post_data(self, self._stream)
+        if self._unbuffered:    
+            self._stream.flush()
 
-        if self._phase & Phase.FINALIZE:
-            dump_indices(self, self._stream, table_space)
-        if self._phase & Phase.FINALIZE:
-            dump_statistics(self, self._stream)
+    def finalize(self, table_space = 'indx'):
+        log.debug("Indexing tables - tablespace: {}".format(table_space))
+        # dump_post_data
+        dump_indices(self, self._stream, table_space)
+        dump_statistics(self, self._stream)
         self._stream.flush()
 #        self._stream.close()
         self._finalized = True
+    
+    def drop(self):
+        log.debug("Dropping table {}".format(self.name))
+        dump_drop(self, self._stream)
+
 
 class Index(object):
     def __init__(self, fields, primary_key = False, cluster = False):
