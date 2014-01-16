@@ -218,6 +218,7 @@ class StreamingLayer(object):
         self._stream.flush()
 
     def pre_data(self):
+        print self._stream
         dump_pre_data(self, self._stream)
         self._stream.flush()
 

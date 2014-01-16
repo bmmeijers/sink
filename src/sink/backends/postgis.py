@@ -75,7 +75,7 @@ def dump_schema(layer, stream): #schema, table_name, srid):
     sql += "\nBEGIN;\n"
     for i, field_nm in geom_fields:
         sql += "\nCOMMIT;\nBEGIN;\n"
-        sql += "SELECT DropGeometryColumn('{0}', '{1}');\n".format(table_name, field_nm)
+        sql += "-- SELECT DropGeometryColumn('{0}', '{1}');\n".format(table_name, field_nm)
         sql += "\nCOMMIT;\nBEGIN;"
     sql += "DROP TABLE IF EXISTS {0};\n".format(table_name)
     sql += "\nCOMMIT;\n"
@@ -163,7 +163,7 @@ def dump_indices(layer, stream, table_space = "indx"):
 
 
 def dump_statistics(layer, stream):
-    sql = """\nVACUUM ANALYZE {0};\n""".format(layer.name)
+    sql = """\n-- VACUUM ANALYZE {0};\n""".format(layer.name)
     stream.write(sql)
     stream.flush()
     return
@@ -181,7 +181,13 @@ def dump_drop(layer, stream):
     return
 
 def dump_line(layer, feature, stream):
-    sql = ""
+    sql = "BEGIN;INSERT INTO {0} (".format(layer.name)
+    defs = []    
+    for name in layer.schema.names:
+        field_def = '"{0}"'.format( name.lower() )
+        defs.append(field_def)
+    sql += ", ".join(defs)
+    sql += ") VALUES ("
     for i, tp in enumerate(layer.schema.types):
         if tp in spatial_types:
             try:
@@ -218,26 +224,28 @@ def dump_line(layer, feature, stream):
             sql += '"{0}"'.format(feature[i])
         if i != len(layer.schema.types) - 1:
             sql += ","
-    sql += "\n"
+    sql += ");COMMIT;\n"
     stream.write(sql)
     stream.flush()
 
 def dump_pre_data(layer, stream):
     # dump_pre_data
-    sql = "\nBEGIN;\nCOPY {0} (".format(layer.name)
-    defs = []    
-    for name in layer.schema.names:
-        field_def = '"{0}"'.format( name.lower() )
-        defs.append(field_def)
-    sql += ", ".join(defs)
-    sql += """) FROM STDIN NULL AS 'NULL' CSV QUOTE '"';\n"""
-    stream.write(sql)
-    stream.flush()
+    pass
+#     sql = "\nBEGIN;\nCOPY {0} (".format(layer.name)
+#     defs = []    
+#     for name in layer.schema.names:
+#         field_def = '"{0}"'.format( name.lower() )
+#         defs.append(field_def)
+#     sql += ", ".join(defs)
+#     sql += """) FROM STDIN NULL AS 'NULL' CSV QUOTE '"';\n"""
+#     stream.write(sql)
+#     stream.flush()
 
 def dump_post_data(layer, stream):
     # dump_post_data
-    stream.write("\.\n\nCOMMIT;\n")
-    stream.flush()
+    pass
+#     stream.write("\.\n\nCOMMIT;\n")
+#     stream.flush()
     
 def dump_data(layer, stream):
     dump_pre_data(layer, stream)
