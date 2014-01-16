@@ -6,15 +6,7 @@ Created on Nov 16, 2011
 __version__ = '0.1.0'
 __author__ = 'Martijn Meijers'
 
-import shlex, subprocess
-import os, tempfile
-
-#from brep.conn import recordset
-
 from simplegeom.wkb import dumps as as_wkb
-
-
-
 from .common import Phase
 
 spatial_types = ('point', 'linestring', 'polygon', 'box2d', )
@@ -74,9 +66,9 @@ def dump_schema(layer, stream): #schema, table_name, srid):
     # -- drop what is there (raises error / notice if table not there)
     sql += "\nBEGIN;\n"
     for i, field_nm in geom_fields:
-        sql += "\nCOMMIT;\nBEGIN;\n"
-        sql += "-- SELECT DropGeometryColumn('{0}', '{1}');\n".format(table_name, field_nm)
-        sql += "\nCOMMIT;\nBEGIN;"
+        sql += "--COMMIT;BEGIN;\n"
+        sql += "--SELECT DropGeometryColumn('{0}', '{1}');\n".format(table_name, field_nm)
+        sql += "--COMMIT;BEGIN;\n"
     sql += "DROP TABLE IF EXISTS {0};\n".format(table_name)
     sql += "\nCOMMIT;\n"
     sql += "\nBEGIN;\n"
@@ -181,7 +173,7 @@ def dump_drop(layer, stream):
     return
 
 def dump_line(layer, feature, stream):
-    sql = "BEGIN;INSERT INTO {0} (".format(layer.name)
+    sql = "INSERT INTO {0} (".format(layer.name)
     defs = []    
     for name in layer.schema.names:
         field_def = '"{0}"'.format( name.lower() )
@@ -189,6 +181,7 @@ def dump_line(layer, feature, stream):
     sql += ", ".join(defs)
     sql += ") VALUES ("
     for i, tp in enumerate(layer.schema.types):
+        sql += "'"
         if tp in spatial_types:
             try:
                 assert feature[i].srid == layer.srid, "{} != {}".format(feature[i].srid, layer.srid)
@@ -222,15 +215,17 @@ def dump_line(layer, feature, stream):
             sql += "NULL"
         else:
             sql += '"{0}"'.format(feature[i])
+        sql += "'"
         if i != len(layer.schema.types) - 1:
             sql += ","
-    sql += ");COMMIT;\n"
+    sql += ");"
     stream.write(sql)
     stream.flush()
 
 def dump_pre_data(layer, stream):
     # dump_pre_data
-    pass
+    stream.write("\nBEGIN;\n")
+    stream.flush()
 #     sql = "\nBEGIN;\nCOPY {0} (".format(layer.name)
 #     defs = []    
 #     for name in layer.schema.names:
@@ -246,6 +241,8 @@ def dump_post_data(layer, stream):
     pass
 #     stream.write("\.\n\nCOMMIT;\n")
 #     stream.flush()
+    stream.write("\nCOMMIT;\n")
+    stream.flush()
     
 def dump_data(layer, stream):
     dump_pre_data(layer, stream)
@@ -282,7 +279,7 @@ def dumps(layer, phase = Phase.ALL):
     
     return ret
 
-#class Loader(object):
+#class StreamingLoader(object):
 #
 #    def __init__(self):
 #        self._tmpdir = tempfile.mkdtemp()
