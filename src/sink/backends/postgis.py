@@ -211,10 +211,13 @@ def dump_line(layer, feature, stream):
                     sql += "TRUE"
                 else:
                     sql += "FALSE"
+        elif tp in string_types:
+            # single quotes are double, so escaped
+            sql += '{0}'.format(feature[i].replace("'", "''"))            
         elif feature[i] is None:
             sql += "NULL"
         else:
-            sql += '"{0}"'.format(feature[i])
+            sql += '{0}'.format(feature[i])
         sql += "'"
         if i != len(layer.schema.types) - 1:
             sql += ","
