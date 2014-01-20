@@ -181,7 +181,8 @@ def dump_line(layer, feature, stream):
     sql += ", ".join(defs)
     sql += ") VALUES ("
     for i, tp in enumerate(layer.schema.types):
-        sql += "'"
+        if feature[i] is not None:
+            sql += "'"
         if tp in spatial_types:
             try:
                 assert feature[i].srid == layer.srid, "{} != {}".format(feature[i].srid, layer.srid)
@@ -220,7 +221,8 @@ def dump_line(layer, feature, stream):
             sql += "NULL"
         else:
             sql += '{0}'.format(feature[i])
-        sql += "'"
+        if feature[i] is not None:
+            sql += "'"
         if i != len(layer.schema.types) - 1:
             sql += ","
     sql += ");\n"
