@@ -183,44 +183,38 @@ def dump_line(layer, feature, stream):
     for i, tp in enumerate(layer.schema.types):
         if feature[i] is not None:
             sql += "'"
-        if tp in spatial_types:
-            try:
-                assert feature[i].srid == layer.srid, "{} != {}".format(feature[i].srid, layer.srid)
-            except:
-                if feature[i]:
-                    feature[i].srid = layer.srid
-                #raise
-            if not feature[i] is None:
+        if feature[i] is None: 
+            if tp not in spatial_types:
+                sql += "NULL"
+            else:
+                sql += '"{0}"'.format(feature[i])
+        else:
+            if tp in spatial_types:
+                try:
+                    assert feature[i].srid == layer.srid, "{} != {}".format(feature[i].srid, layer.srid)
+                except:
+                    if feature[i]:
+                        feature[i].srid = layer.srid
+                    raise
                 if tp == 'box2d':
                     sql += "{0}".format(as_wkb(feature[i].polygon))
                 else:
                     sql += "{0}".format(as_wkb(feature[i]))
-            elif feature[i] is None:
-                sql += "NULL"
-            else:
-                sql += '"{0}"'.format(feature[i])
-        elif tp in numeric_types:
-            if feature[i] is None:
-                sql += "NULL"
-            else:
+                    
+            elif tp in numeric_types:
                 sql += "{0}".format(feature[i])
-        elif tp in numeric_types:
-            if feature[i] is None:
-                sql += "NULL"
-            else:
+            elif tp in numeric_types:
                 if feature[i]:
                     sql += "TRUE"
                 else:
                     sql += "FALSE"
-        elif tp in string_types:
-            # single quotes are double, so escaped
-            s = feature[i]
-            if s is not None:
-                sql += '{0}'.format(s.replace("'", "''"))
-        elif feature[i] is None:
-            sql += "NULL"
-        else:
-            sql += '{0}'.format(feature[i])
+            elif tp in string_types:
+                # single quotes are double, so escaped
+                s = feature[i]
+                if s is not None:
+                    sql += '{0}'.format(s.replace("'", "''"))
+            else:
+                sql += '{0}'.format(feature[i])
         if feature[i] is not None:
             sql += "'"
         if i != len(layer.schema.types) - 1:
