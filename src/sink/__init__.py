@@ -181,8 +181,15 @@ class Layer(object):
 
     def finalize(self):
         pass
-    
 
+#    
+# FIXME:
+# The API for StreamingLayer is absolutely unclear ATM
+# Better to make this separate from the dump_ part
+# although an appended feature should be dumped immediately
+# to the output stream, and this is thus dependent on the backend
+# (e.g. postgres copy from is different from oracle)
+# 
 class StreamingLayer(object):
     def __init__(self, schema, name, srid = -1, stream = None, unbuffered = False, options = None):
         self._count = 0
@@ -255,10 +262,13 @@ class StreamingLayer(object):
         log.debug("Indexing tables - tablespace: {}".format(table_space))
         # dump_post_data
         dump_indices(self, self._stream, table_space)
-        dump_statistics(self, self._stream)
         self._stream.flush()
 #        self._stream.close()
         self._finalized = True
+    
+    def statistics(self):
+        dump_statistics(self, self._stream)
+        self._stream.flush()
     
     def drop(self):
         log.debug("Dropping table {}".format(self.name))

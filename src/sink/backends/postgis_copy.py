@@ -173,19 +173,13 @@ def dump_drop(layer, stream):
     return
 
 def dump_line(layer, feature, stream):
-    sql = "INSERT INTO {0} (".format(layer.name)
-    defs = []    
-    for name in layer.schema.names:
-        field_def = '"{0}"'.format( name.lower() )
-        defs.append(field_def)
-    sql += ", ".join(defs)
-    sql += ") VALUES ("
+    sql = ""
     for i, tp in enumerate(layer.schema.types):
-        if feature[i] is not None:
-            sql += "'"
-        if feature[i] is None: 
+#         if feature[i] is not None:
+#             sql += "'"
+        if feature[i] is None:
             if tp not in spatial_types:
-                sql += "NULL"
+                sql += "\\N"
             else:
                 sql += '"{0}"'.format(feature[i])
         else:
@@ -215,35 +209,18 @@ def dump_line(layer, feature, stream):
                     sql += '{0}'.format(s.replace("'", "''"))
             else:
                 sql += '{0}'.format(feature[i])
-        if feature[i] is not None:
-            sql += "'"
+#         if feature[i] is not None:
+#             sql += "'"
         if i != len(layer.schema.types) - 1:
-            sql += ","
-    sql += ");\n"
-    stream.write(sql)
+            sql += "\t"
+    stream.write(sql + "\n")
     stream.flush()
 
 def dump_pre_data(layer, stream):
-    # dump_pre_data
-    stream.write("\nBEGIN;\n")
-    stream.flush()
-#     sql = "\nBEGIN;\nCOPY {0} (".format(layer.name)
-#     defs = []    
-#     for name in layer.schema.names:
-#         field_def = '"{0}"'.format( name.lower() )
-#         defs.append(field_def)
-#     sql += ", ".join(defs)
-#     sql += """) FROM STDIN NULL AS 'NULL' CSV QUOTE '"';\n"""
-#     stream.write(sql)
-#     stream.flush()
+    pass
 
 def dump_post_data(layer, stream):
-    # dump_post_data
     pass
-#     stream.write("\.\n\nCOMMIT;\n")
-#     stream.flush()
-    stream.write("\nCOMMIT;\n")
-    stream.flush()
     
 def dump_data(layer, stream):
     dump_pre_data(layer, stream)
