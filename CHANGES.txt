@@ -1,0 +1,43 @@
+Changelog for topomap
+===========================
+
+0.7.1 (unreleased)
+------------------
+
+- Make copy_from backend without vacuum, so we can use it with psycopg2
+- Make everything work on Windows.
+
+
+0.7.0 (2013-02-13)
+------------------
+
+- Added drop.
+
+
+0.6.1 (2012-12-14)
+------------------
+
+- Fixing small typo.
+
+
+0.6.0 (2012-12-14)
+------------------
+
+- Improving Oracle backend.
+
+
+0.4.0 (2012-12-14)
+------------------
+
+- First try at Oracle backend.
+
+
+0.3 (2012-07-10)
+------------------
+- First public release.
+
+
+0.1.0 (2012-03-23)
+------------------
+
+- Initial release.
