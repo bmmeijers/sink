@@ -1,7 +1,7 @@
 Changelog for topomap
 ===========================
 
-0.7.1 (unreleased)
+0.7.1 (2014-02-19)
 ------------------
 
 - Make copy_from backend without vacuum, so we can use it with psycopg2
