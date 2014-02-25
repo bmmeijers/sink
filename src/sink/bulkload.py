@@ -96,7 +96,7 @@ class FifoBasedBulkloader(Bulkloader):
         os.mkfifo(self._filename)
         auth = auth_params()
         # FIXME Use nohup?
-        cli = 'psql -d {} -f {}'.format(auth['database'], self._filename)
+        cli = 'psql -d {0} -f {1}'.format(auth['database'], self._filename)
         self._op = subprocess.Popen(cli.split(' '), 
                                     stdout=subprocess.PIPE, 
                                     stderr = subprocess.PIPE, 

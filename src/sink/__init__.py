@@ -259,7 +259,7 @@ class StreamingLayer(object):
             self._stream.flush()
 
     def finalize(self, table_space = 'indx'):
-        log.debug("Indexing tables - tablespace: {}".format(table_space))
+        log.debug("Indexing tables - tablespace: {0}".format(table_space))
         # dump_post_data
         dump_indices(self, self._stream, table_space)
         self._stream.flush()
@@ -271,7 +271,7 @@ class StreamingLayer(object):
         self._stream.flush()
     
     def drop(self):
-        log.debug("Dropping table {}".format(self.name))
+        log.debug("Dropping table {0}".format(self.name))
         dump_drop(self, self._stream)
 
 

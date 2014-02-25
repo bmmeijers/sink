@@ -185,7 +185,7 @@ def dump_line(layer, feature, stream):
         else:
             if tp in spatial_types:
                 try:
-                    assert feature[i].srid == layer.srid, "{} != {}".format(feature[i].srid, layer.srid)
+                    assert feature[i].srid == layer.srid, "{0} != {1}".format(feature[i].srid, layer.srid)
                 except:
                     if feature[i]:
                         feature[i].srid = layer.srid
