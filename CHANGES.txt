@@ -4,7 +4,7 @@ Changelog for topomap
 0.7.2 (unreleased)
 ------------------
 
-- Nothing changed yet.
+- Change for primary key, so that primary key is created in index table space
 
 
 0.7.1 (2014-02-19)

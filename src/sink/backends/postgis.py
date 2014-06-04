@@ -114,7 +114,8 @@ def dump_indices(layer, stream, table_space = "indx"):
         if index.primary_key:
             # ALTER TABLE distributors ADD PRIMARY KEY (dist_id);
             #assert len(index.fields) == 1, "index is primary key, so exactly one field required"
-            sql = "ALTER TABLE {0} ADD PRIMARY KEY ({1});\n".format(layer.name, ", ".join(field_names))
+            #sql = "ALTER TABLE {0} ADD PRIMARY KEY ({1});\n".format(layer.name, ", ".join(field_names))
+            sql = "ALTER TABLE {0} ADD CONSTRAINT {0}_pkey PRIMARY KEY ({1}) USING INDEX TABLESPACE {2};\n".format(layer.name, ", ".join(field_names), table_space)
             stream.write(sql)
             stream.write("\nCOMMIT;\nBEGIN;\n")
         else:
