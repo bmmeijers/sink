@@ -217,10 +217,20 @@ def dump_line(layer, feature, stream):
     stream.flush()
 
 def dump_pre_data(layer, stream):
-    pass
+    sql = "\nBEGIN;\nCOPY {0} (".format(layer.name)
+    defs = []    
+    for name in layer.schema.names:
+        field_def = '"{0}"'.format( name.lower() )
+        defs.append(field_def)
+    sql += ", ".join(defs)
+    #sql += """) FROM STDIN NULL AS 'NULL' CSV QUOTE '"';\n"""
+    sql += """) FROM STDIN;\n"""
+    stream.write(sql)
+    stream.flush()
 
 def dump_post_data(layer, stream):
-    pass
+    stream.write("\.\n\nCOMMIT;\n")
+    stream.flush()
     
 def dump_data(layer, stream):
     dump_pre_data(layer, stream)
