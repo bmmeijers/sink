@@ -217,6 +217,9 @@ def dump_line(layer, feature, stream):
     stream.flush()
 
 def dump_pre_data(layer, stream):
+    return
+    # FIXME: THIS IS INCORRECT FOR USING
+    # TOGHETHER WITH psycopg2.copy_from
     sql = "\nBEGIN;\nCOPY {0} (".format(layer.name)
     defs = []    
     for name in layer.schema.names:
@@ -229,6 +232,9 @@ def dump_pre_data(layer, stream):
     stream.flush()
 
 def dump_post_data(layer, stream):
+    return
+    # FIXME: THIS IS INCORRECT FOR USING
+    # TOGHETHER WITH psycopg2.copy_from
     stream.write("\.\n\nCOMMIT;\n")
     stream.flush()
     
