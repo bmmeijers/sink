@@ -103,7 +103,7 @@ def dump_schema(layer, stream): #schema, table_name, srid):
     stream.flush()
 
 
-def dump_indices(layer, stream, table_space = "indx"):
+def dump_indices(layer, stream, table_space = "pgdefault"):
     stream.write("\nBEGIN;\n")
     for index in layer.schema.indices:
         field_names = [field.name for field in index.fields]
@@ -191,13 +191,13 @@ def dump_line(layer, feature, stream):
                         feature[i].srid = layer.srid
                     raise
                 if tp == 'box2d':
-                    sql += "{0}".format(as_wkb(feature[i].polygon))
+                    sql += '"{0}"'.format(as_wkb(feature[i].polygon))
                 else:
-                    sql += "{0}".format(as_wkb(feature[i]))
+                    sql += '"{0}"'.format(as_wkb(feature[i]))
                     
             elif tp in numeric_types:
                 sql += "{0}".format(feature[i])
-            elif tp in numeric_types:
+            elif tp in boolean_types:
                 if feature[i]:
                     sql += "TRUE"
                 else:
@@ -217,10 +217,19 @@ def dump_line(layer, feature, stream):
     stream.flush()
 
 def dump_pre_data(layer, stream):
-    pass
+    sql = "\nBEGIN;\nCOPY {0} (".format(layer.name)
+    defs = []    
+    for name in layer.schema.names:
+        field_def = '"{0}"'.format( name.lower() )
+        defs.append(field_def)
+    sql += ", ".join(defs)
+    sql += """) FROM STDIN NULL AS 'NULL';\n""" # CSV QUOTE '"';\n"""
+    stream.write(sql)
+    stream.flush()
 
 def dump_post_data(layer, stream):
-    pass
+    stream.write("\.\n\nCOMMIT;\n")
+    stream.flush()
     
 def dump_data(layer, stream):
     dump_pre_data(layer, stream)
