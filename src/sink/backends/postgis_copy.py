@@ -178,10 +178,11 @@ def dump_line(layer, feature, stream):
 #         if feature[i] is not None:
 #             sql += "'"
         if feature[i] is None:
-            if tp not in spatial_types:
-                sql += "\\N"
-            else:
-                sql += '"{0}"'.format(feature[i])
+            sql += "\\N"
+#             if tp not in spatial_types:
+#                 sql += "\\N"
+#             else:
+#                 sql += '"{0}"'.format(feature[i])
         else:
             if tp in spatial_types:
                 try:
@@ -194,7 +195,6 @@ def dump_line(layer, feature, stream):
                     sql += "{0}".format(as_wkb(feature[i].polygon))
                 else:
                     sql += "{0}".format(as_wkb(feature[i]))
-                    
             elif tp in numeric_types:
                 sql += "{0}".format(feature[i])
             elif tp in numeric_types:

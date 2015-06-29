@@ -103,7 +103,7 @@ def dump_schema(layer, stream): #schema, table_name, srid):
     stream.flush()
 
 
-def dump_indices(layer, stream, table_space = "indx"):
+def dump_indices(layer, stream, table_space = "pg_default"):
     stream.write("\nBEGIN;\n")
     for index in layer.schema.indices:
         field_names = [field.name for field in index.fields]

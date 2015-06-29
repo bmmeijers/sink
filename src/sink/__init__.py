@@ -14,7 +14,7 @@ import sys
 from backends.common import Phase
 
 import logging
-log = logging.getLogger(__name__)
+# log = logging.getLogger(__name__)
 
 
 # Probably this is also helpful:
@@ -259,7 +259,7 @@ class StreamingLayer(object):
             self._stream.flush()
 
     def finalize(self, table_space = 'indx'):
-        log.debug("Indexing tables - tablespace: {0}".format(table_space))
+        logging.debug("Indexing tables - tablespace: {0}".format(table_space))
         # dump_post_data
         dump_indices(self, self._stream, table_space)
         self._stream.flush()
@@ -271,7 +271,7 @@ class StreamingLayer(object):
         self._stream.flush()
     
     def drop(self):
-        log.debug("Dropping table {0}".format(self.name))
+        logging.debug("Dropping table {0}".format(self.name))
         dump_drop(self, self._stream)
 
 

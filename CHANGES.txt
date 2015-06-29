@@ -1,4 +1,4 @@
-Changelog for topomap
+Changelog for sink
 ===========================
 
 0.7.3 (unreleased)
