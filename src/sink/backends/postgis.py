@@ -182,7 +182,8 @@ def dump_line(layer, feature, stream):
     sql += ", ".join(defs)
     sql += ") VALUES ("
     for i, tp in enumerate(layer.schema.types):
-        if feature[i] is not None:
+        # no quotes around numeric types, for the rest they will have quotes
+        if feature[i] is not None and tp not in numeric_types:
             sql += "'"
         if feature[i] is None: 
             if tp not in spatial_types:
@@ -201,10 +202,9 @@ def dump_line(layer, feature, stream):
                     sql += "{0}".format(as_wkb(feature[i].polygon))
                 else:
                     sql += "{0}".format(as_wkb(feature[i]))
-                    
             elif tp in numeric_types:
                 sql += "{0}".format(feature[i])
-            elif tp in numeric_types:
+            elif tp in boolean_types:
                 if feature[i]:
                     sql += "TRUE"
                 else:
@@ -216,7 +216,7 @@ def dump_line(layer, feature, stream):
                     sql += '{0}'.format(s.replace("'", "''"))
             else:
                 sql += '{0}'.format(feature[i])
-        if feature[i] is not None:
+        if feature[i] is not None and tp not in numeric_types:
             sql += "'"
         if i != len(layer.schema.types) - 1:
             sql += ","

@@ -54,7 +54,7 @@ def dump_schema(layer, stream): #schema, table_name, srid):
     #
     sql = """--
 -- Created with sink
--- PostGIS backend v.{0}
+-- PostGIS COPY backend v.{0}
 -- {1}
 --
 """.format(__version__, __author__)
