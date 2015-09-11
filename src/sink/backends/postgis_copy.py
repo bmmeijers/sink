@@ -197,7 +197,7 @@ def dump_line(layer, feature, stream):
                     sql += "{0}".format(as_wkb(feature[i]))
             elif tp in numeric_types:
                 sql += "{0}".format(feature[i])
-            elif tp in numeric_types:
+            elif tp in boolean_types:
                 if feature[i]:
                     sql += "TRUE"
                 else:

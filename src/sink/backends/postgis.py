@@ -186,10 +186,10 @@ def dump_line(layer, feature, stream):
         if feature[i] is not None and tp not in numeric_types:
             sql += "'"
         if feature[i] is None: 
-            if tp not in spatial_types:
-                sql += "NULL"
-            else:
-                sql += '"{0}"'.format(feature[i])
+#            if tp not in spatial_types:
+            sql += "NULL"
+#            else:
+#                sql += '"{0}"'.format(feature[i])
         else:
             if tp in spatial_types:
                 try:
