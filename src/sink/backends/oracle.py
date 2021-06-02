@@ -464,9 +464,9 @@ def dumps(layer, data = True):
     """Returns a string representation of ``layer''
     """
     try:
-        from cStringIO import StringIO
+        from io import StringIO
     except ImportError:
-        from StringIO import StringIO
+        from io import StringIO
     stream = StringIO()
     dump(layer, stream, data)
     ret = stream.getvalue()

@@ -7,13 +7,15 @@ __version__ = '0.1.0'
 __author__ = 'Martijn Meijers'
 
 from simplegeom.wkb import dumps as as_wkb
+from json import dumps as as_json
 from .common import Phase
 
-spatial_types = ('point', 'linestring', 'polygon', 'box2d', )
-numeric_types = ('integer', 'bigint', 'numeric', 'float', 'float8' )
-string_types =  ('varchar', )
+spatial_types = ('point', 'linestring', 'polygon', 'multipolygonz', 'box2d', )
+numeric_types = ('integer', 'bigint', 'numeric', 'float', 'float8')
+string_types = ('varchar', )
 boolean_types = ('boolean',)
 date_types = ('timestamp', 'date', 'time', )
+object_types = ('json', )
 
 def loads(layer, limit = None, filter = None):
     
@@ -41,11 +43,12 @@ def loads(layer, limit = None, filter = None):
             if tp in spatial_types:
                 geom_fields.append(layer.schema.names[i])
         for field in geom_fields:
-            print field
+            print(field)
     if limit is not None:
         sql += "LIMIT {0}".format(limit)
     for item in irecordset(sql):
         layer.append(*item)
+
 
 def dump_schema(layer, stream): #schema, table_name, srid):
     schema = layer.schema
@@ -97,7 +100,10 @@ def dump_schema(layer, stream): #schema, table_name, srid):
 #            tp = "POLYGON"
 #        else:
 #            raise ValueError("Unknown dimension ({0}) given for geometry".format(dim))
-        sql += "SELECT AddGeometryColumn('{0}', '{1}', '{2}', '{3}', 2);\n".format(table_name, field_nm.lower(), srid, tp)
+        dim = 2
+        if tp == 'MULTIPOLYGONZ':
+            dim = 3
+        sql += "SELECT AddGeometryColumn('{0}', '{1}', '{2}', '{3}', {4});\n".format(table_name, field_nm.lower(), srid, tp, dim)
     sql += "COMMIT;\n"
     stream.write(sql)
     stream.flush()
@@ -204,6 +210,8 @@ def dump_line(layer, feature, stream):
                     sql += "{0}".format(as_wkb(feature[i]))
             elif tp in numeric_types:
                 sql += "{0}".format(feature[i])
+            elif tp in object_types:
+                sql += "{0}".format(as_json(feature[i], allow_nan=False))
             elif tp in boolean_types:
                 if feature[i]:
                     sql += "TRUE"
@@ -271,9 +279,9 @@ def dumps(layer, phase = Phase.ALL):
     """Returns a string representation of ``layer''
     """
     try:
-        from cStringIO import StringIO
+        from io import StringIO
     except ImportError:
-        from StringIO import StringIO
+        from io import StringIO
     stream = StringIO()
     dump(layer, stream, phase)
     ret = stream.getvalue()

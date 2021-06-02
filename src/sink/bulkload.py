@@ -128,14 +128,14 @@ def test():
     #stream1.write(text)
     
     man0.close()
-    print """stdout"""
-    print man0.result()[0]
-    print "--"
-    print """stderr"""
-    print man0.result()[1]
-    print "--"
+    print("""stdout""")
+    print(man0.result()[0])
+    print("--")
+    print("""stderr""")
+    print(man0.result()[1])
+    print("--")
     #man1.close()
-    print 'done'
+    print('done')
     #print man1.result()[0]
     
     #try:
