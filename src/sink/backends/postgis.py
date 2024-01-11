@@ -10,7 +10,7 @@ from simplegeom.wkb import dumps as as_wkb
 from json import dumps as as_json
 from .common import Phase
 
-spatial_types = ('point', 'linestring', 'polygon', 'multipolygonz', 'box2d', )
+spatial_types = ('point', 'linestring', 'polygon', 'multipolygonz', 'polygonz', 'box2d', )
 numeric_types = ('integer', 'bigint', 'numeric', 'float', 'float8')
 string_types = ('varchar', )
 boolean_types = ('boolean',)
@@ -102,6 +102,8 @@ def dump_schema(layer, stream): #schema, table_name, srid):
 #            raise ValueError("Unknown dimension ({0}) given for geometry".format(dim))
         dim = 2
         if tp == 'MULTIPOLYGONZ':
+            dim = 3
+        elif tp == 'POLYGONZ':
             dim = 3
         sql += "SELECT AddGeometryColumn('{0}', '{1}', '{2}', '{3}', {4});\n".format(table_name, field_nm.lower(), srid, tp, dim)
     sql += "COMMIT;\n"
