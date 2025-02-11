@@ -84,7 +84,7 @@ def dump_schema(layer, stream): #schema, table_name, srid):
             field_def = '{0} {1}'.format(name.lower(), tp)
             defs.append(field_def)
     sql += ", ".join(defs)
-    sql += ") WITH (OIDS=TRUE);\n"
+    sql += ");\n" #WITH (OIDS=TRUE);\n"
     # -- add geometry type fields
     for i, field_nm in geom_fields:
         tp = schema.types[i].upper()
